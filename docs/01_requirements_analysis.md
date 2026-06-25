@@ -71,7 +71,7 @@ Theo contract hiện tại của AI, phạm vi dữ liệu được căn theo **
 
 ### 6.1 Patterns build thật
 
-CDO-02 build thật 4 patterns (confirmed với AI contract):
+CDO-02 build thật 5 patterns (confirmed với AI contract):
 
 | Pattern | Signal kích hoạt | Action | pattern_type |
 |---|---|---|---|
@@ -146,7 +146,8 @@ Yêu cầu chung từ AI contract:
 
 - Mọi signal phải có `tenant_id`.
 - Với CDO-02, tenant ID là `6c8b4b2b-4d45-4209-a1b4-4b532d56a31c` — **confirmed** trong deployment contract 2026-06-25.
-- Timestamp dùng RFC3339 UTC.
+- Timestamp dùng RFC3339 UTC với độ chính xác millisecond (ví dụ: `2026-06-25T10:00:00.123Z`).
+- Trường `labels` là optional, nhưng **`labels.system` là required** khi có labels — phải khai báo tên/mã hệ thống (ví dụ: `"system": "E-COMMERCE"`). Telemetry không có `labels.system` sẽ bị AI reject 400.
 - Với RE2/RE3, CDO preprocessor đọc `metrics.csv`, `logs.csv`, `traces.csv`, chuẩn hóa signal rồi đưa vào executor/AI API path. SQS chỉ là buffer nội bộ nếu CDO tự chọn, vì AI contract mới chưa cung cấp queue ARN.
 - CDO phải lọc/mã hóa PII trước khi gửi log sang AI.
 
@@ -306,7 +307,7 @@ Tất cả các điểm dưới đây đã được xác nhận trong 3 contract
 - Sandbox target là AWS/EKS; cluster `cdo-eks-cluster-dev` đã ACTIVE (K8s 1.30, us-east-1, account 938145531618). Evidence thật thu được T6 W11 — xem `evidence/w11-ai-contract-sync/EKS_RUNTIME_EVIDENCE_REPORT.md`.
 - Region mặc định theo client brief là `us-east-1`, trừ khi trainer/mentor yêu cầu khác.
 - Observability theo contract AI gồm CloudWatch Logs, Prometheus metrics endpoint và OpenTelemetry traces về Jaeger hoặc AWS X-Ray.
-- Audit storage theo contract AI là S3 Object Lock Governance Mode, retention tối thiểu 90 ngày.
+- Audit storage: CDO-02 dùng S3 Object Lock **Governance Mode**, retention tối thiểu 90 ngày (theo trainer feedback W11). Deployment contract AI nói Compliance mode — CDO không theo vì Compliance không xóa được kể cả admin.
 - Idempotency lock theo deployment contract AI dùng DynamoDB conditional write; TTL 24 giờ để ngăn replay attack và duplicate execution trong vòng 1 ngày. CDO-02 ưu tiên DynamoDB để khớp AWS-native design.
 - CDO-02 có thể dùng mock/skeleton AI endpoint từ T6 W11 đến trước integration session W12.
 

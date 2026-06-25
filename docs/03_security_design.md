@@ -246,7 +246,7 @@ Audit record tối thiểu:
 | `reason` | Lý do safety deny hoặc failure |
 | `idempotency_key` | Chống execute trùng action |
 
-Storage target theo contract AI: **S3 Object Lock Governance Mode**, retention tối thiểu 90 ngày.
+CDO-02 dùng **S3 Object Lock Governance Mode**, retention tối thiểu 90 ngày (theo trainer feedback W11). Lưu ý: deployment contract AI quy định Compliance mode — CDO không theo vì Compliance không xóa được kể cả admin; Governance cho phép admin unlock với `s3:BypassGovernanceRetention` khi cần trong sandbox.
 
 ## 9. Data Protection
 
