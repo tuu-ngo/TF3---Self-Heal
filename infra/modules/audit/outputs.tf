@@ -4,5 +4,7 @@ output "dynamodb_table_name" { value = aws_dynamodb_table.idempotency.name }
 output "dynamodb_table_arn"  { value = aws_dynamodb_table.idempotency.arn }
 output "sqs_queue_url"       { value = aws_sqs_queue.telemetry.url }
 output "sqs_queue_arn"       { value = aws_sqs_queue.telemetry.arn }
+output "sqs_queue_name"      { value = aws_sqs_queue.telemetry.name }
 output "sqs_dlq_url"         { value = aws_sqs_queue.telemetry_dlq.url }
 output "sqs_dlq_arn"         { value = aws_sqs_queue.telemetry_dlq.arn }
+output "sqs_dlq_name"        { value = aws_sqs_queue.telemetry_dlq.name }

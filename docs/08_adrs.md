@@ -146,7 +146,8 @@ CDO-02 chọn observability stack theo hướng:
 - CloudWatch Logs cho logs.
 - Container Insights/Prometheus-compatible metrics cho metrics.
 - OpenTelemetry schema tương thích Jaeger hoặc AWS X-Ray cho traces.
-- Với RE2/RE3 Offline Simulation Mode, dùng telemetry preprocessor đọc `metrics.csv`, `logs.csv`, `traces.csv`, inject tenant UUID, chuẩn hóa signal và đưa vào executor/AI API path. SQS chỉ là buffer nội bộ nếu CDO chọn, vì AI contract mới chưa cung cấp queue ARN.
+- SQS là **CDO-internal buffer** — telemetry contract-new-2 (Section 2.5.C) đã chốt AI không pull từ SQS. CDO Forwarder/Worker batch-push từ SQS sang `/v1/detect`. AI không giữ queue ARN và không cần biết SQS tồn tại.
+- Với Offline Simulation Mode, dùng telemetry preprocessor đọc dataset, inject tenant UUID, chuẩn hóa signal và đưa vào executor/AI API path qua SQS buffer nội bộ.
 
 W11 Pack #1 tập trung design/schema; W12 mới thu evidence thật từ sandbox hoặc simulation.
 

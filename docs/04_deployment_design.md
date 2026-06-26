@@ -1,8 +1,8 @@
 # Deployment & CI/CD Design - Task Force 3 Self-Heal Engine - CDO-02
 
 **Doc owner:** CDO-02  
-**Trạng thái:** Draft cho W11/W12 deployment design alignment  
-**Last updated:** 2026-06-25 (sync AI commit 86b32e7)  
+**Trạng thái:** Ready for W11 Pack #1 review  
+**Last updated:** 2026-06-26 (sync contract-new-2 — module structure, AI Engine spec, sync waves)  
 
 ## 1. Chiến lược IaC
 
@@ -40,28 +40,28 @@ Hướng này đủ cho scope nhóm hiện tại, đồng thời ít moving part
 
 ### 1.2 Cấu trúc module
 
-Cấu trúc IaC đề xuất cho CDO-02:
+Cấu trúc IaC thực tế của CDO-02:
 
 ```text
 infra/
   modules/
     vpc/                 # VPC, subnets, route tables, security groups
     eks/                 # EKS cluster, node groups, cluster access baseline
-    iam/                 # IRSA, deployment roles, least-privilege policies
-    observability/       # Prometheus stack, Grafana, CloudWatch integration
-    audit/               # S3 audit bucket, Object Lock, retention controls
-    idempotency/         # DynamoDB table cho idempotency lock
-    tenant-bootstrap/    # namespace, RBAC, labels, sample workload baseline
-  environments/
-    sandbox/
-  README.md
+    iam/                 # IRSA executor + AI Engine, least-privilege policies
+    observability/       # CloudWatch log groups, alarms (executor errors, Kyverno deny, DLQ rate)
+    audit/               # S3 Object Lock (Governance), DynamoDB idempotency, SQS + DLQ
+    kyverno/             # Kyverno Helm release (admission control layer 3)
+    argocd/              # ArgoCD Helm release (GitOps engine)
+  envs/
+    dev/                 # wiring sandbox environment, terraform.tfstate
 ```
 
 Ý nghĩa của cấu trúc này:
 
-- `modules/` giữ logic dùng chung.
-- `environments/` giữ biến và wiring cho `sandbox`.
-- `tenant-bootstrap/` phục vụ yêu cầu multi-tenant Kubernetes tối thiểu với `tenant-a`, `tenant-b` và `platform`.
+- `modules/` giữ logic dùng chung, có thể tái sử dụng cho nhiều environment.
+- `envs/dev/` giữ wiring và biến cho sandbox environment duy nhất trong capstone.
+- DynamoDB idempotency và SQS telemetry buffer nằm trong module `audit/` vì cùng nhóm dữ liệu bền vững.
+- Namespace, RBAC, sample workloads được quản lý qua ArgoCD manifests trong `manifests/` — không qua Terraform module riêng.
 
 Trong scope capstone, **sandbox** là môi trường duy nhất cần implement. Không cần mở rộng sang `staging` hoặc `prod` trong bản hiện tại nếu nhóm chưa có nhu cầu thật.
 
@@ -355,23 +355,25 @@ CDO executor chỉ được write vào `manifests/<tenant>/` của chính tenant
 
 | Layer | Tool | Scope |
 |---|---|---|
-| AWS base infra | Terraform | VPC, EKS, IAM/IRSA, S3, DynamoDB |
-| ArgoCD bootstrap | Terraform hoặc Helm | namespace `argocd`, ArgoCD install |
+| AWS base infra | Terraform | VPC, EKS, IAM/IRSA (executor + AI Engine), S3, DynamoDB, SQS |
+| ArgoCD bootstrap | Terraform Helm release | namespace `argocd`, ArgoCD install |
+| Kyverno bootstrap | Terraform Helm release | namespace `kyverno`, Kyverno install |
 | AppProject + Application | ArgoCD | Scoped per tenant |
-| Namespace + RBAC | ArgoCD (wave 0–1) | platform, tenant-a, tenant-b |
+| Namespace + RBAC | ArgoCD (wave 0–1) | `platform`, `tenant-a`, `tenant-b`, `self-heal-system` |
 | Observability stack | ArgoCD (wave 2) | Prometheus, Alertmanager, Grafana |
 | CDO executor / collector | ArgoCD (wave 3) | namespace `platform` |
-| Sample workloads | ArgoCD (wave 4) | tenant-a, tenant-b |
+| AI Engine deployment | ArgoCD (wave 3) | namespace `self-heal-system` — CDO deploy từ OCI image AI team bàn giao (W12) |
+| Sample workloads | ArgoCD (wave 4) | `tenant-a`, `tenant-b` |
 | Runtime deferred action | CDO executor → Git commit → ArgoCD | Per-incident manifest patch |
 
 ### 3.8 Sync waves
 
 | Wave | Components |
 |---|---|
-| 0 | Namespace `platform`, `tenant-a`, `tenant-b`; baseline labels/annotations |
-| 1 | RBAC, ServiceAccounts, IRSA bindings, configmaps |
+| 0 | Namespace `platform`, `tenant-a`, `tenant-b`, `self-heal-system`; baseline labels/annotations |
+| 1 | RBAC, ServiceAccounts, IRSA bindings, configmaps; NetworkPolicy (allow-executor-to-ai) |
 | 2 | Observability stack: Prometheus, Alertmanager, Grafana |
-| 3 | CDO executor, telemetry collector, webhook/mock integration |
+| 3 | CDO executor, telemetry collector; AI Engine Deployment + HPA (sau khi AI team bàn giao OCI image) |
 | 4 | Tenant sample workloads và test scenarios |
 
 ### 3.9 Drift detection
@@ -542,6 +544,65 @@ EKS workloads
 -> Alerting + dashboards + audit logs
 -> deployment gate / smoke test / verify signal
 ```
+
+## 8. AI Engine Deployment Spec (CDO-managed, W12)
+
+CDO-02 chịu trách nhiệm deploy AI Engine từ OCI image do AI team bàn giao. Image sẽ có trong W12; CDO chuẩn bị manifest sẵn theo spec trong deployment contract-new-2 để apply ngay khi nhận được image.
+
+### 8.1 Resource spec (deployment contract §2.A)
+
+```yaml
+resources:
+  requests:
+    cpu: "500m"
+    memory: "1024Mi"
+  limits:
+    cpu: "1000m"
+    memory: "2048Mi"
+```
+
+### 8.2 HPA spec (deployment contract §2.B)
+
+```yaml
+minReplicas: 2
+maxReplicas: 10
+metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+```
+
+### 8.3 IRSA + Secret
+
+- ServiceAccount `ai-engine` trong namespace `self-heal-system` annotated với IAM role ARN do Terraform module `iam/` tạo.
+- AI Engine đọc Bedrock credentials từ AWS Secrets Manager path `tf-3/ai-engine/bedrock` qua IRSA.
+- IAM role `cdo-ai-engine-irsa-<cluster>` có quyền: Bedrock invoke, S3 audit write, DynamoDB idempotency, SecretsManager GetSecretValue cho path `tf-3/ai-engine/bedrock`.
+
+### 8.4 Probes
+
+```yaml
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 8080
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: 8080
+```
+
+### 8.5 Labels và NetworkPolicy
+
+AI Engine pod phải có label `app: ai-engine` — bắt buộc để NetworkPolicy `allow-executor-to-ai` trong namespace `self-heal-system` hoạt động đúng (chỉ cho phép executor pod từ namespace `platform` reach port 8080).
 
 ## 9. Câu Hỏi Mở
 

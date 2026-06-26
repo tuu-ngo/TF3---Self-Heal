@@ -50,3 +50,43 @@ resource "aws_cloudwatch_metric_alarm" "kyverno_deny_spike" {
   alarm_description   = "Kyverno deny > 3 trong 5 phút — có thể là unsafe action attempt"
   treat_missing_data  = "notBreaching"
 }
+
+# Alarm: DLQ malformed telemetry rate > 0.5% trong 5 phút
+# Requirement: telemetry contract-new-2 Section 2.5.B
+resource "aws_cloudwatch_metric_alarm" "dlq_malformed_rate" {
+  alarm_name          = "cdo-dlq-malformed-rate-${var.environment}"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  threshold           = 0.5
+  alarm_description   = "DLQ malformed telemetry > 0.5% tổng lưu lượng trong 5 phút (telemetry contract-new-2 §2.5.B)"
+  treat_missing_data  = "notBreaching"
+
+  metric_query {
+    id          = "malformed_rate"
+    expression  = "IF(total_msgs > 0, dlq_msgs / total_msgs * 100, 0)"
+    label       = "DLQ Malformed Rate (%)"
+    return_data = true
+  }
+
+  metric_query {
+    id = "dlq_msgs"
+    metric {
+      namespace   = "AWS/SQS"
+      metric_name = "NumberOfMessagesSent"
+      dimensions  = { QueueName = var.dlq_queue_name }
+      period      = 300
+      stat        = "Sum"
+    }
+  }
+
+  metric_query {
+    id = "total_msgs"
+    metric {
+      namespace   = "AWS/SQS"
+      metric_name = "NumberOfMessagesSent"
+      dimensions  = { QueueName = var.sqs_queue_name }
+      period      = 300
+      stat        = "Sum"
+    }
+  }
+}
