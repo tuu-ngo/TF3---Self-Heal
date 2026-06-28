@@ -1,0 +1,11 @@
+# Ruff config cho executor — giữ CI ổn định, deterministic.
+line-length = 100
+target-version = "py312"
+
+[lint]
+# Default (E4/E7/E9/F) + import sorting (I). Bỏ E501 nếu cần (line-length đã nới 100).
+select = ["E4", "E7", "E9", "F", "I"]
+
+[lint.per-file-ignores]
+# Test cần sửa sys.path trước import → cho phép import-not-at-top.
+"tests/*" = ["E402"]

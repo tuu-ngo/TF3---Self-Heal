@@ -1,0 +1,29 @@
+# CODEOWNERS — khớp ma trận trong Role.md
+# GitHub tự request review từ owner tương ứng khi PR chạm file trong path.
+# Bật "Require review from Code Owners" trong Branch protection của `main` để enforce.
+#
+# ⚠ THAY placeholder bằng GitHub username thật (@user) hoặc team (@org/team) trước khi dùng.
+#   A1 = Bạn (Lead) | A2/A3/A4 = Core | B1/B2/B3 = Platform | C1/C2/C3 = Telemetry/QA
+#   Pattern khớp theo dòng cuối cùng match → đặt default trước, cụ thể sau.
+
+# ---------- Default: Lead review mọi thứ chưa có owner riêng ----------
+*                       @a1-lead
+
+# ---------- Subteam A — Self-Heal Core (executor) ----------
+/executor/              @a1-lead @a2 @a3 @a4
+
+# ---------- Subteam B — Platform & Infrastructure ----------
+/infra/                 @b1 @b2 @b3
+/manifests/             @b3 @b1 @b2
+
+# ---------- Subteam C — Telemetry, QA & Evidence ----------
+/docs/                  @c3 @c1 @c2
+/evidence/              @c3 @c1 @c2
+
+# ---------- FROZEN / governance: chỉ Lead ----------
+# `/contract*/` khớp cả "contract - new 4/" (dấu cách trong tên thư mục) và "contracts/".
+/contract*/             @a1-lead
+/new-contract/          @a1-lead
+/WORK_RULE.md           @a1-lead
+/Role.md                @a1-lead
+/.github/               @a1-lead

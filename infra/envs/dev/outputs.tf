@@ -32,3 +32,18 @@ output "executor_role_arn" {
   description = "IRSA role ARN for CDO executor pod"
   value       = module.iam.executor_role_arn
 }
+
+output "ai_engine_role_arn" {
+  description = "IRSA role ARN for AI Engine pod (annotate vào SA ai-engine)"
+  value       = module.iam.ai_engine_role_arn
+}
+
+output "ecr_executor_url" {
+  description = "ECR repo URL cho image executor"
+  value       = module.ecr.repository_url
+}
+
+output "ai_engine_secret_arn" {
+  description = "ARN Secrets Manager tf-3/ai-engine/bedrock"
+  value       = module.secrets.secret_arn
+}

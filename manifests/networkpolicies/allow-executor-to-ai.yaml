@@ -1,6 +1,7 @@
-# NetworkPolicy — Local Trust: chỉ executor pod trong namespace "platform"
-# được phép reach AI Engine tại self-heal-system:8080
-# Tất cả ingress khác vào self-heal-system bị block
+# NetworkPolicy — Local Trust (deployment-contract §5.A).
+# Executor (self-heal-system, app=cdo-self-heal-controller) → AI Engine :8080.
+# Mọi ingress khác vào self-heal-system bị block.
+# Lưu ý: executor đặt trong `self-heal-system` theo contract §3.D (resolve A-01).
 
 ---
 # Default deny all ingress vào self-heal-system
@@ -15,7 +16,8 @@ spec:
     - Ingress
 
 ---
-# Allow: executor pod (namespace=platform, app=cdo-executor) → AI Engine port 8080
+# Allow: executor pod (cùng namespace self-heal-system, app=cdo-self-heal-controller)
+#        → AI Engine pod (app=ai-engine) port 8080
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -29,12 +31,10 @@ spec:
     - Ingress
   ingress:
     - from:
-        - namespaceSelector:
+        # cùng namespace → chỉ cần podSelector (không cần namespaceSelector)
+        - podSelector:
             matchLabels:
-              kubernetes.io/metadata.name: platform
-          podSelector:
-            matchLabels:
-              app: cdo-executor
+              app: cdo-self-heal-controller
       ports:
         - protocol: TCP
           port: 8080

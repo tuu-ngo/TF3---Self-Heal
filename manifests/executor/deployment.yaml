@@ -1,0 +1,48 @@
+# CDO Self-Heal Executor — workload runtime của CDO (image build từ executor/Dockerfile).
+# SA tf3-cdo-controller (IRSA) + label app=cdo-self-heal-controller (khớp NetworkPolicy + RBAC §3.D).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cdo-self-heal-executor
+  namespace: self-heal-system
+  labels:
+    app: cdo-self-heal-controller
+    component: executor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cdo-self-heal-controller
+  template:
+    metadata:
+      labels:
+        app: cdo-self-heal-controller
+        component: executor
+    spec:
+      serviceAccountName: tf3-cdo-controller
+      containers:
+        - name: executor
+          # ⚠ Thay bằng ECR URI + tag commit: `terraform output ecr_executor_url` : <commit-sha>
+          image: 938145531618.dkr.ecr.us-east-1.amazonaws.com/cdo-executor:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: cdo-executor-config
+          # MVP: giữ pod sống để demo (exec scenario vào pod):
+          #   kubectl exec -n self-heal-system deploy/cdo-self-heal-executor -- \
+          #     python main.py scenarios/tc01_service_stuck.json
+          # W12 (A-TODO): thay bằng server mode (HTTP ingestion / SQS consumer) + probe /health.
+          command: ["sleep", "infinity"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop: ["ALL"]

@@ -18,7 +18,8 @@ data "aws_iam_policy_document" "executor_trust" {
     condition {
       test     = "StringEquals"
       variable = local.oidc_subject
-      values   = ["system:serviceaccount:platform:cdo-executor"]
+      # Khớp deployment-contract §3.D: SA `tf3-cdo-controller` trong namespace `self-heal-system`.
+      values = ["system:serviceaccount:self-heal-system:tf3-cdo-controller"]
     }
   }
 }

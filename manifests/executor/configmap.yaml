@@ -1,0 +1,18 @@
+# Config cho executor — bơm vào pod qua envFrom. Khớp executor/config.py.
+# ⚠ Tên bucket/table phải verify bằng `terraform output` (mặc định theo naming convention dev).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cdo-executor-config
+  namespace: self-heal-system
+  labels:
+    app: cdo-self-heal-controller
+data:
+  CDO_TENANT_ID: "6c8b4b2b-4d45-4209-a1b4-4b532d56a31c"
+  AI_BASE_URL: "http://ai-engine.self-heal-system.svc.cluster.local:8080"
+  CDO_EXECUTOR_NS: "self-heal-system"
+  CDO_TENANT_NAMESPACES: "tenant-a,tenant-b"
+  AWS_REGION: "us-east-1"
+  CDO_IDEMPOTENCY_TABLE: "cdo-idempotency-dev"           # = terraform output dynamodb_table_name
+  CDO_AUDIT_BUCKET: "cdo-audit-cdo-eks-cluster-dev-dev"  # = terraform output audit_bucket_name
+  CDO_K8S_MOCK: "false"                                   # chạy K8s thật trong cluster

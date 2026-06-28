@@ -1,0 +1,135 @@
+# =============================================================================
+# AI ENGINE — DEPLOYMENT TEMPLATE (DISABLED)
+# =============================================================================
+# ⚠ FILE NÀY KHÔNG TỰ APPLY: đuôi `.yaml.template` → `kubectl apply -f manifests/ai-engine/`
+#   bỏ qua (kubectl chỉ nhận .yaml/.yml/.json). Đây là giàn sẵn, KÍCH HOẠT khi AI giao image.
+#
+# AI Engine là sản phẩm của AI team. CDO chỉ chịu trách nhiệm DEPLOY (wrapper) theo
+# deployment-contract §2 (Self-Hosted In-Cluster). KHÔNG sửa logic bên trong AI engine.
+#
+# Cách kích hoạt (W12, khi nhận OCI image từ AI team):
+#   1. Đổi <AI_ENGINE_IMAGE> bên dưới thành image AI bàn giao (ECR URI + immutable tag).
+#   2. Đảm bảo SA `ai-engine` đã có (manifests/rbac/ai-engine-serviceaccount.yaml) + IRSA role
+#      (terraform module iam/) + secret tf-3/ai-engine/bedrock (terraform module secrets/).
+#   3. Đổi tên: cp deployment.yaml.template deployment.yaml
+#   4. Apply: kubectl apply -f manifests/ai-engine/deployment.yaml
+#   5. Verify: kubectl -n self-heal-system rollout status deploy/ai-engine
+#              kubectl -n self-heal-system exec deploy/ai-engine -- curl -s localhost:8080/ready
+#
+# Spec bám: deployment-contract §2.A (resource), §2.B (HPA), §7 (probes), §1.5/§2.C (routing).
+# =============================================================================
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-engine
+  namespace: self-heal-system
+  labels:
+    app: ai-engine                       # BẮT BUỘC: NetworkPolicy allow-executor-to-ai dựa vào label này
+    component: ai-engine
+spec:
+  replicas: 2                            # HPA quản từ 2→10; để 2 làm baseline (§2.B)
+  selector:
+    matchLabels:
+      app: ai-engine
+  strategy:
+    type: RollingUpdate                  # §6.A: MaxSurge 25%, MaxUnavailable 0
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: ai-engine
+        component: ai-engine
+    spec:
+      serviceAccountName: ai-engine      # IRSA → Bedrock/S3/DynamoDB/SecretsManager (module iam/)
+      containers:
+        - name: ai-engine               # §2.A: container name cố định
+          image: <AI_ENGINE_IMAGE>      # ⚠ THAY: <acct>.dkr.ecr.us-east-1.amazonaws.com/ai-engine:<tag>
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080        # §2.A: container port 8080
+          env:
+            # AI engine đọc Bedrock creds từ Secrets Manager qua IRSA (KHÔNG hardcode key).
+            - name: BEDROCK_SECRET_PATH
+              value: "tf-3/ai-engine/bedrock"   # §3.B path; value thật do AI team set
+            - name: AWS_REGION
+              value: "us-east-1"
+          resources:                     # §2.A
+            requests:
+              cpu: "500m"
+              memory: "1024Mi"
+            limits:
+              cpu: "1000m"
+              memory: "2048Mi"
+          livenessProbe:                 # §7.A + §7.C
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:                # §7.B: ready khi đã kết nối Bedrock/DDB/S3
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+
+---
+# Service nội bộ — endpoint http://ai-engine.self-heal-system.svc.cluster.local:8080
+# (khớp deployment-contract §2.C + telemetry-contract §2.5.C). ClusterIP, KHÔNG public.
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-engine
+  namespace: self-heal-system
+  labels:
+    app: ai-engine
+spec:
+  type: ClusterIP
+  selector:
+    app: ai-engine
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+
+---
+# HPA — §2.B: Min 2 / Max 10, scale theo CPU 70% hoặc Memory 80%.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ai-engine
+  namespace: self-heal-system
+  labels:
+    app: ai-engine
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ai-engine
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80

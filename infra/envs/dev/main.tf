@@ -31,13 +31,21 @@ module "iam" {
 }
 
 module "observability" {
-  source          = "../../modules/observability"
-  cluster_name    = module.eks.cluster_name
-  environment     = var.environment
-  sqs_queue_name  = module.audit.sqs_queue_name
-  dlq_queue_name  = module.audit.sqs_dlq_name
+  source         = "../../modules/observability"
+  cluster_name   = module.eks.cluster_name
+  environment    = var.environment
+  sqs_queue_name = module.audit.sqs_queue_name
+  dlq_queue_name = module.audit.sqs_dlq_name
 
   depends_on = [module.audit]
+}
+
+module "ecr" {
+  source = "../../modules/ecr"
+}
+
+module "secrets" {
+  source = "../../modules/secrets"
 }
 
 module "kyverno" {
@@ -47,8 +55,8 @@ module "kyverno" {
 }
 
 module "argocd" {
-  source       = "../../modules/argocd"
-  environment  = var.environment
+  source      = "../../modules/argocd"
+  environment = var.environment
 
   depends_on = [module.eks]
 }
