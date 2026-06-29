@@ -79,6 +79,20 @@ class Config:
     idempotency_ttl_seconds: int = _env_int("CDO_IDEMPOTENCY_TTL_S", 86400)  # 24h
     audit_bucket: str = _env("CDO_AUDIT_BUCKET", "")  # rỗng → audit chỉ ra stdout (dev)
 
+    # --- Pod Status Watcher (Option 1 telemetry collector) ---
+    poll_interval_s: int = _env_int("CDO_POLL_INTERVAL_S", 30)
+    restart_count_threshold: int = _env_int("CDO_RESTART_THRESHOLD", 3)
+    heal_cooldown_s: int = _env_int("CDO_HEAL_COOLDOWN_S", 300)  # tránh trigger lại trong 5 phút
+    verify_max_wait_s: int = _env_int("CDO_VERIFY_MAX_WAIT_S", 120)  # cap chờ trước khi scrape verify
+
+    # --- Circuit Breaker (safety sub-checkpoint #5) ---
+    circuit_fail_threshold: int = _env_int("CDO_CIRCUIT_THRESHOLD", 3)   # fail liên tiếp → trip
+    circuit_window_s: int = _env_int("CDO_CIRCUIT_WINDOW_S", 300)        # cửa sổ đếm fail
+    circuit_cooldown_s: int = _env_int("CDO_CIRCUIT_COOLDOWN_S", 300)    # thời gian open trước half-open
+
+    # --- Escalation delivery (req #8) ---
+    escalation_webhook_url: str = _env("CDO_ESCALATION_WEBHOOK", "")  # rỗng → mock pager (chỉ audit)
+
     # --- Error/retry policy (ai-api-contract §4) ---
     http_500_max_retries: int = 2
     http_500_backoff_s: tuple[float, ...] = (1.0, 3.0)

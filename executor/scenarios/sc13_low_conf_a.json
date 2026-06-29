@@ -1,0 +1,23 @@
+{
+  "scenario": "low_conf",
+  "description": "Confidence thấp + severity thấp → no action",
+  "tenant_namespace": "tenant-a",
+  "correlation_id": "sc13-0000-0000-0000-000000000000",
+  "expected_outcome": "low_confidence_no_action",
+  "expected_resolved": false,
+  "telemetry_window": [
+    {
+      "ts": "2026-06-29T10:00:00.000Z",
+      "tenant_id": "6c8b4b2b-4d45-4209-a1b4-4b532d56a31c",
+      "service": "checkout-svc",
+      "signal_name": "minor_blip",
+      "value": 1,
+      "labels": {
+        "system": "K8S_NATIVE",
+        "namespace": "tenant-a",
+        "deployment": "cdo-sample-api",
+        "scenario": "low_conf"
+      }
+    }
+  ]
+}

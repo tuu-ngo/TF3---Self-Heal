@@ -28,7 +28,7 @@
 | Tenant ID (`X-Tenant-Id` / `tenant_id`) | `6c8b4b2b-4d45-4209-a1b4-4b532d56a31c` |
 | Workload tenant-a | `deployment/cdo-sample-api` (podinfo) · service `checkout-svc` · ns `tenant-a` · mem limit 128Mi · replicas 1 |
 | Workload tenant-b | `deployment/notification-service` (podinfo) · ns `tenant-b` · mem limit 128Mi · replicas 2 |
-| AI endpoint | `http://ai-engine.self-heal-system.svc.cluster.local:8080` (`/v1/detect`, `/v1/decide`, `/v1/verify`) |
+| AI endpoint | `http://ai-engine.self-heal-system.svc.cluster.local:8080` (`/v1/detect`, `/v1/decide`, `/v1/verify`) | (to be update)
 | System label | `"system": "E-COMMERCE"` (bắt buộc trong `labels`) |
 
 **podinfo hỗ trợ inject thật** (CDO dùng để tạo lỗi live): `POST /readyz/disable`·`/readyz/enable` (toggle readiness), `GET /status/{code}` (sinh 5xx), `GET /delay/{s}` (tăng latency), `GET /panic` (crash), metrics Prometheus ở `:9797`.

@@ -8,10 +8,18 @@ Mỗi incident = 1 chuỗi event; audit fields tối thiểu theo 07_test_eval �
 from __future__ import annotations
 
 import json
+import sys
 import time
 from typing import Any
 
 from config import CONFIG
+
+# stdout có thể là cp1252 (Windows console) → ép UTF-8 để log JSON chứa ký tự
+# non-ASCII (vd reason "≠", tiếng Việt) không làm crash audit.
+try:
+    sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
+except Exception:
+    pass
 
 try:
     import boto3
@@ -38,6 +46,8 @@ EXECUTE_SKIPPED = "execute_skipped"
 VERIFY_CALLED = "verify_called"
 VERIFY_DONE = "verify_done"
 ROLLBACK_DONE = "rollback_done"
+CIRCUIT_OPEN = "circuit_breaker_open"
+CIRCUIT_TRIPPED = "circuit_breaker_tripped"
 ESCALATED = "escalated"
 INCIDENT_CLOSED = "incident_closed"
 
