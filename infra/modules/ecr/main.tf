@@ -1,7 +1,7 @@
 # ECR private repo cho image CDO executor (build từ executor/Dockerfile).
 # Node group EKS đã có quyền AmazonEC2ContainerRegistryReadOnly → pod tự pull, không cần imagePullSecret.
 resource "aws_ecr_repository" "executor" {
-  name                 = "cdo-executor"
+  name                 = "cdo-executor-arthur"
   image_tag_mutability = "IMMUTABLE" # ép tag theo commit-sha, không cho đè :latest
 
   image_scanning_configuration {

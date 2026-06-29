@@ -17,7 +17,7 @@ terraform {
   }
 
   backend "s3" {
-    bucket       = "cdo-tf-state-012619468490-dev"
+    bucket       = "cdo-tf-state-012619468490-arthur"
     key          = "envs/dev/terraform.tfstate"
     region       = "ap-southeast-1"
     use_lockfile = true

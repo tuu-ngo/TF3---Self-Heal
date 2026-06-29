@@ -27,7 +27,7 @@ provider "aws" {
 
 # Bucket name gắn account ID để tránh conflict tên global S3
 locals {
-  bucket_name = "cdo-tf-state-012619468490-dev"
+  bucket_name = "cdo-tf-state-012619468490-arthur"
 }
 
 resource "aws_s3_bucket" "tfstate" {
