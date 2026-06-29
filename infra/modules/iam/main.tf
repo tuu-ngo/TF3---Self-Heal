@@ -127,7 +127,7 @@ data "aws_iam_policy_document" "ai_engine_policy" {
       "bedrock:InvokeModel",
       "bedrock:InvokeModelWithResponseStream",
     ]
-    resources = ["arn:aws:bedrock:ap-southeast-1::foundation-model/*"]
+    resources = ["arn:aws:bedrock:us-east-1::foundation-model/*"]
   }
 
   statement {
@@ -135,7 +135,7 @@ data "aws_iam_policy_document" "ai_engine_policy" {
     effect  = "Allow"
     actions = ["secretsmanager:GetSecretValue"]
     resources = [
-      "arn:aws:secretsmanager:ap-southeast-1:${var.aws_account_id}:secret:tf-3/ai-engine/bedrock*",
+      "arn:aws:secretsmanager:us-east-1:${var.aws_account_id}:secret:tf-3/ai-engine/bedrock*",
     ]
   }
 

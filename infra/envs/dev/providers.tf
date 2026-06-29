@@ -17,16 +17,16 @@ terraform {
   }
 
   backend "s3" {
-    bucket       = "cdo-tf-state-012619468490-arthur"
+    bucket       = "cdo-tf-state-012619468490-dev"
     key          = "envs/dev/terraform.tfstate"
-    region       = "ap-southeast-1"
+    region       = "us-east-1"
     use_lockfile = true
     encrypt      = true
   }
 }
 
 provider "aws" {
-  region = "ap-southeast-1"
+  region = "us-east-1"
 
   default_tags {
     tags = {

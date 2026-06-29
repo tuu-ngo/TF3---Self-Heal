@@ -68,7 +68,7 @@ Khi AI trả `pattern_type: "urgent"`, CDO executor gọi Kubernetes API trực 
 
 ## ADR-003 - Chọn namespace-based tenant isolation và RBAC least privilege
 
-- **Status:** Accepted
+- **Status:** Accepted (cập nhật 2026-06-29: executor SA chuyển sang `self-heal-system` theo contract §3.D — xem note cuối ADR)
 - **Date:** 2026-06-23
 
 ### Context
@@ -85,7 +85,9 @@ tenant-b
 platform
 ```
 
-Executor chạy trong `platform` namespace và chỉ được cấp quyền theo Role/RoleBinding cần thiết để thao tác target namespace đã cho phép.
+Executor chỉ được cấp quyền theo Role/RoleBinding cần thiết để thao tác target namespace đã cho phép.
+
+> **Update 2026-06-29 — executor namespace = `self-heal-system` (không phải `platform`):** Deployment Contract §3.D yêu cầu SA `tf3-cdo-controller` nằm trong `self-heal-system`. CDO chốt theo contract: executor pod + SA đặt trong `self-heal-system`; RoleBinding sang `tenant-a`/`tenant-b` để patch workload. IRSA trust policy (`infra/modules/iam/main.tf`) bind `system:serviceaccount:self-heal-system:tf3-cdo-controller`. Đã đồng bộ trong `k8s/`, `manifests/executor/`, `manifests/rbac/`. Phần "tenant-a/tenant-b/platform" của decision gốc vẫn giữ nguyên; chỉ vị trí executor đổi từ `platform` → `self-heal-system`.
 
 ### Consequences
 

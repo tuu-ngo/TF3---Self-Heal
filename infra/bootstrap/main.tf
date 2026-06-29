@@ -14,7 +14,7 @@ terraform {
 }
 
 provider "aws" {
-  region = "ap-southeast-1"
+  region = "us-east-1"
 
   default_tags {
     tags = {
@@ -27,7 +27,7 @@ provider "aws" {
 
 # Bucket name gắn account ID để tránh conflict tên global S3
 locals {
-  bucket_name = "cdo-tf-state-012619468490-arthur"
+  bucket_name = "cdo-tf-state-012619468490-dev"
 }
 
 resource "aws_s3_bucket" "tfstate" {
