@@ -17,9 +17,9 @@ terraform {
   }
 
   backend "s3" {
-    bucket       = "cdo-tf-state-938145531618-dev"
+    bucket       = "cdo-tf-state-012619468490-dev"
     key          = "envs/dev/terraform.tfstate"
-    region       = "us-east-1"
+    region       = "ap-southeast-1"
     use_lockfile = true  # native S3 locking (Terraform >= 1.10) — không cần DynamoDB
     encrypt      = true
   }
@@ -34,7 +34,7 @@ data "aws_eks_cluster_auth" "main" {
 }
 
 provider "aws" {
-  region = "us-east-1"
+  region = "ap-southeast-1"
 
   default_tags {
     tags = {
