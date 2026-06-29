@@ -1,0 +1,23 @@
+{
+  "scenario": "crashloop_b",
+  "description": "Restart count cao tenant-b → RESTART → heal",
+  "tenant_namespace": "tenant-b",
+  "correlation_id": "sc07-0000-0000-0000-000000000000",
+  "expected_outcome": "auto_resolved",
+  "expected_resolved": true,
+  "telemetry_window": [
+    {
+      "ts": "2026-06-29T10:00:00.000Z",
+      "tenant_id": "6c8b4b2b-4d45-4209-a1b4-4b532d56a31c",
+      "service": "orders-svc",
+      "signal_name": "restart_count",
+      "value": 7,
+      "labels": {
+        "system": "K8S_NATIVE",
+        "namespace": "tenant-b",
+        "deployment": "cdo-orders-api",
+        "scenario": "crashloop_b"
+      }
+    }
+  ]
+}

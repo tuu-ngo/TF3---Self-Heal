@@ -5,3 +5,7 @@
 *.tfstate.backup
 crash.log
 ai-team-repo/
+
+# Python bytecode
+__pycache__/
+*.pyc
