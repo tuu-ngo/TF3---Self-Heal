@@ -45,13 +45,13 @@ Scope cost CDO-02 bao gồm: VPC/networking, EKS cluster, observability stack, a
 | Item | Spec | Đơn giá | Ước tính/ngày | Ước tính 10 ngày |
 |---|---|---|---|---|
 | NAT Gateway | 1 single NAT (demo/cost choice) | $0.045/h + $0.045/GB | $1.08 | **$10.80** |
-| NAT Gateway data processed | ~5 GB/ngày ước tính | $0.045/GB | $0.23 | **$2.25** |
-| VPC Endpoints (S3, CloudWatch, DynamoDB) | 3 interface endpoints | $0.01/h/endpoint | $0.72 | **$7.20** |
-| VPC Endpoints (ECR API + ECR DKR) | 2 interface endpoints — bắt buộc để EKS pull AI container image từ ECR qua private subnet | $0.01/h/endpoint × 2 | $0.48 | **$4.80** |
+| NAT Gateway data processed | ~4 GB/ngày (image pull + internet traffic) | $0.045/GB | $0.18 | **$1.80** |
+| VPC Gateway Endpoint — S3 | Gateway type, traffic AWS không qua NAT | **FREE** | $0.00 | **$0.00** |
+| VPC Gateway Endpoint — DynamoDB | Gateway type, traffic AWS không qua NAT | **FREE** | $0.00 | **$0.00** |
 | Data transfer inter-AZ | ~1 GB/ngày | $0.01/GB | $0.01 | **$0.10** |
-| **Subtotal VPC** | | | **$2.52/ngày** | **~$25.15** |
+| **Subtotal VPC** | | | **$1.27/ngày** | **~$12.70** |
 
-> Ghi chú: Dùng **Single NAT Gateway** như ghi trong architecture diagram để tối ưu cost cho demo. ECR cần 2 VPC endpoints (`ecr.api` và `ecr.dkr`) để EKS nodes trong private subnet pull được AI container image mà không phải đi qua NAT — nếu thiếu 2 endpoints này, toàn bộ image pull traffic đi qua NAT và tốn thêm data transfer cost. Production sẽ cần NAT per-AZ cho HA.
+> Ghi chú: Dùng **Single NAT Gateway** để tối ưu cost cho demo. S3 và DynamoDB dùng **Gateway Endpoint** (miễn phí hoàn toàn — không tính giờ, không tính data) — traffic audit S3 write, TF state, và DynamoDB idempotency lock không đi qua NAT. ECR image pull (Docker Hub/ghcr.io) vẫn đi qua NAT vì không có Gateway Endpoint cho ECR. Production sẽ cần NAT per-AZ cho HA.
 
 ### 3.3 Amazon S3 - Audit & State
 
@@ -87,11 +87,12 @@ Scope cost CDO-02 bao gồm: VPC/networking, EKS cluster, observability stack, a
 
 | Item | Spec | Đơn giá | Ước tính/ngày | Ước tính 10 ngày |
 |---|---|---|---|---|
-| CloudWatch Logs Ingestion | ~2 GB/ngày (executor + K8s + audit) | $0.50/GB | $1.00 | **$10.00** |
-| CloudWatch Logs Storage (10 ngày) | ~20 GB | $0.03/GB/month | $0.02 | **$0.20** |
-| CloudWatch Metrics (custom) | ~50 metrics × 2 tenants | $0.30/metric/month (after 10 free) | $0.50 | **$5.00** |
-| CloudWatch Alarms | ~10 alarms | $0.10/alarm/month | $0.03 | **$0.33** |
-| **Subtotal CloudWatch** | | | **~$1.55/ngày** | **~$15.53** |
+| CloudWatch Logs Ingestion | executor boto3 PutLogEvents trực tiếp (không có FluentBit/CWAgent) — nằm trong free tier 5GB/tháng | $0.50/GB (sau free tier) | ~$0.00 | **~$0.00** |
+| CloudWatch Logs Storage | 5 log groups: 4 × 7 ngày retention, 1 × 7 ngày retention (audit — đã giảm từ 30) | $0.03/GB/month | negligible | **~$0.01** |
+| CloudWatch Alarms | 3 alarms (executor error, Kyverno deny, DLQ rate) | $0.10/alarm/month | $0.01 | **$0.10** |
+| **Subtotal CloudWatch** | | | **~$0.01/ngày** | **~$0.11** |
+
+> Ghi chú: Không có FluentBit DaemonSet hay CloudWatch Agent trong Terraform — log ingestion chỉ từ executor code gọi `boto3 PutLogEvents` trực tiếp. Volume thực tế nằm trong free tier 5GB/tháng. Tổng 3 alarms trong Terraform (không phải 10 như forecast ban đầu). Audit log group đã giảm retention từ 30 → 7 ngày; S3 Object Lock (90 ngày) là source of truth theo contract.
 
 ### 3.7 Amazon ECR - Container Images
 
@@ -172,6 +173,8 @@ Components chạy trong EKS cluster (Prometheus, Alertmanager, Grafana, OTel Col
 | S3 Athena thay vì OpenSearch | Tiết kiệm ~$30/10 ngày | Query by correlation_id đủ dùng Athena |
 | In-cluster Prometheus thay vì Amazon Managed Prometheus | Tiết kiệm ~$20/10 ngày | Sandbox không cần managed service |
 | EKS node desired=2 (không over-provision) | Baseline cost thấp | Scale up chỉ khi load test |
+| **VPC Gateway Endpoint S3 + DynamoDB** (W12) | Giảm NAT data charge cho S3/DynamoDB traffic; endpoint bản thân FREE | Implemented trong `infra/modules/vpc/main.tf` — traffic audit write + TF state + idempotency không qua NAT |
+| **CloudWatch audit log retention 30→7 ngày** (W12) | Giảm log storage cost; S3 Object Lock 90 ngày là source of truth | Implemented trong `infra/modules/observability/main.tf`; không ảnh hưởng compliance rubric |
 
 ---
 

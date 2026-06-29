@@ -16,14 +16,13 @@ terraform {
     }
   }
 
-  # S3 backend — bỏ comment khi migrate từ local state (target W12)
-  # backend "s3" {
-  #   bucket       = "cdo-tf-state-dev"
-  #   key          = "envs/dev/terraform.tfstate"
-  #   region       = "us-east-1"
-  #   use_lockfile = true   # requires Terraform >= 1.10
-  #   encrypt      = true
-  # }
+  backend "s3" {
+    bucket       = "cdo-tf-state-938145531618-dev"
+    key          = "envs/dev/terraform.tfstate"
+    region       = "us-east-1"
+    use_lockfile = true  # native S3 locking (Terraform >= 1.10) — không cần DynamoDB
+    encrypt      = true
+  }
 }
 
 data "aws_eks_cluster" "main" {

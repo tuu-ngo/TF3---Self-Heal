@@ -10,7 +10,9 @@ resource "aws_cloudwatch_log_group" "executor" {
 
 resource "aws_cloudwatch_log_group" "self_heal_audit" {
   name              = "/cdo/${var.environment}/audit"
-  retention_in_days = 30
+  retention_in_days = 7
+  # S3 Object Lock (GOVERNANCE, 90 ngày) là source of truth cho audit.
+  # CloudWatch chỉ phục vụ query real-time — 7 ngày là đủ.
 }
 
 resource "aws_cloudwatch_log_group" "argocd" {

@@ -20,3 +20,37 @@ module "vpc" {
     "kubernetes.io/role/internal-elb" = 1
   }
 }
+
+# -------------------------------------------------------------------
+# VPC Gateway Endpoints — S3 và DynamoDB
+# Gateway Endpoint hoàn toàn MIỄN PHÍ (không tính theo giờ, không tính data).
+# Traffic từ EKS nodes (private subnet) đến S3/DynamoDB đi thẳng qua
+# backbone AWS thay vì qua NAT Gateway → giảm NAT data charge + tăng bandwidth.
+# Áp dụng cho: audit S3 write, TF state S3 read/write, DynamoDB idempotency lock.
+# -------------------------------------------------------------------
+
+resource "aws_vpc_endpoint" "s3" {
+  vpc_id            = module.vpc.vpc_id
+  service_name      = "com.amazonaws.us-east-1.s3"
+  vpc_endpoint_type = "Gateway"
+  route_table_ids   = module.vpc.private_route_table_ids
+
+  tags = {
+    Name        = "cdo-vpc-s3-gw-${var.environment}"
+    Project     = "tf3-cdo-02"
+    Environment = var.environment
+  }
+}
+
+resource "aws_vpc_endpoint" "dynamodb" {
+  vpc_id            = module.vpc.vpc_id
+  service_name      = "com.amazonaws.us-east-1.dynamodb"
+  vpc_endpoint_type = "Gateway"
+  route_table_ids   = module.vpc.private_route_table_ids
+
+  tags = {
+    Name        = "cdo-vpc-dynamodb-gw-${var.environment}"
+    Project     = "tf3-cdo-02"
+    Environment = var.environment
+  }
+}

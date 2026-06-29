@@ -1,6 +1,70 @@
-# Build Guide — T6 W11 (26/06/2026)
+# Build Guide — T6 W11 (cập nhật W12: S3 remote state)
 
 Thứ tự chạy chính xác. Đừng skip bước nào — mỗi bước depend vào bước trước.
+
+---
+
+## [W12 — B1 Infra Lead chạy 1 lần] Bước 0 — Bootstrap S3 state bucket
+
+> **Chỉ B1 chạy bước này.** Sau khi bucket tồn tại, team còn lại bỏ qua bước 0 và chạy thẳng từ "Bước 0b".
+> Bucket name: `cdo-tf-state-938145531618-dev` (account ID gắn vào để tránh conflict global).
+
+```bash
+cd infra/bootstrap
+terraform init
+terraform apply    # tạo S3 bucket + versioning + encryption + bucket policy
+terraform output   # xác nhận tfstate_bucket_name
+```
+
+Expected output:
+```
+tfstate_bucket_name = "cdo-tf-state-938145531618-dev"
+```
+
+Sau đó migrate local state (nếu đã có `terraform.tfstate`) lên S3:
+
+```bash
+cd infra/envs/dev
+
+# Nếu đã từng apply với local state, migrate state lên S3
+terraform init -migrate-state
+# Terraform hỏi "Do you want to copy existing state?" → nhập "yes"
+```
+
+Nếu chưa có local state (fresh start):
+
+```bash
+cd infra/envs/dev
+terraform init   # tự dùng S3 backend ngay, không cần migrate
+```
+
+Kiểm tra state đã lên S3:
+
+```bash
+aws s3 ls s3://cdo-tf-state-938145531618-dev/envs/dev/
+# phải thấy terraform.tfstate
+```
+
+---
+
+## [W12 — Mọi thành viên còn lại] Bước 0b — Kết nối vào S3 remote state
+
+> Chạy lệnh này **thay vì** bước 0. B1 đã tạo bucket rồi, bạn chỉ cần init.
+
+```bash
+# Đảm bảo AWS credentials đúng (cùng account 938145531618)
+aws sts get-caller-identity
+
+cd infra/envs/dev
+terraform init    # tự nhận backend S3, không cần migrate
+terraform plan    # xác nhận đọc được state chung
+```
+
+> **Quy tắc 1-apply-1-người (WORK_RULE §IV):** `terraform apply` chỉ 1 người chạy 1 lúc.
+> S3 `use_lockfile = true` sẽ block apply thứ hai nếu đang có apply chạy.
+> Không cần thêm DynamoDB lock vì Terraform >= 1.10 dùng S3 conditional writes.
+
+---
 
 ## Trước khi bắt đầu
 
@@ -176,6 +240,9 @@ terraform output executor_role_arn
 
 ## Checklist cuối ngày
 
+- [ ] S3 state bucket `cdo-tf-state-938145531618-dev` tồn tại, versioning ON, public access blocked
+- [ ] `aws s3 ls s3://cdo-tf-state-938145531618-dev/envs/dev/` thấy `terraform.tfstate`
+- [ ] Tất cả thành viên `terraform init` thành công, không còn local state
 - [ ] `terraform apply` thành công, 0 errors
 - [ ] Kyverno pods RUNNING, 3 ClusterPolicies READY
 - [ ] Kyverno test: replicas=11 bị deny, namespace=default bị deny, tenant-a pass
