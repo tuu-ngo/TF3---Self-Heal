@@ -34,23 +34,30 @@ resource "helm_release" "kube_prometheus_stack" {
       }
     }
 
-    # Route mọi alert đang firing → Alert Forwarder webhook → SQS
+    # Route mọi alert đang firing → Alert Forwarder webhook → SQS.
+    # LƯU Ý: phải có receiver "null" + routes=[] vì chart kube-prometheus-stack mặc định
+    # có child-route trỏ receiver "null" (Watchdog/InhibitInfo); nếu thiếu → operator báo
+    # "undefined receiver null used in route" và KHÔNG tạo được Alertmanager.
     alertmanager = {
       config = {
         route = {
           receiver        = "cdo-forwarder"
+          routes          = []
           group_by        = ["namespace", "alertname"]
           group_wait      = "10s"
           group_interval  = "30s"
           repeat_interval = "5m"
         }
-        receivers = [{
-          name = "cdo-forwarder"
-          webhook_configs = [{
-            url           = var.forwarder_webhook_url
-            send_resolved = true
-          }]
-        }]
+        receivers = [
+          { name = "null" },
+          {
+            name = "cdo-forwarder"
+            webhook_configs = [{
+              url           = var.forwarder_webhook_url
+              send_resolved = true
+            }]
+          },
+        ]
       }
     }
   })]

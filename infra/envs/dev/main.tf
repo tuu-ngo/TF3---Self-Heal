@@ -49,11 +49,29 @@ module "secrets" {
   source = "../../modules/secrets"
 }
 
-# kyverno + argocd + monitoring dùng helm provider — apply sau khi EKS tồn tại (phase 2).
-# Bật: (1) thay providers.tf bằng providers_phase2.tf (provider trỏ cluster thật),
-#      (2) bỏ comment 3 module dưới, (3) terraform init && apply.
+# =============================================================================
+# PHASE 2 — Helm releases (kyverno + argocd + kube-prometheus-stack)
+# =============================================================================
+# Helm cần provider trỏ vào EKS THẬT → tách phase-2 (không gộp 1 apply với việc
+# tạo cluster vì provider không thể phụ thuộc resource tạo cùng lúc).
+#
+# QUY TRÌNH bật phase-2 (chạy SAU khi phase-1 apply xong, cluster ACTIVE):
+#   cd infra/envs/dev
+#   mv providers.tf providers_phase1.tf.bak
+#   mv providers_phase2.tf.disabled providers.tf      # provider trỏ cluster thật
+#   # bỏ comment 3 module dưới
+#   terraform init -reconfigure
+#
+#   # (CHỈ KHI cluster đã có release cài tay qua helm CLI) — import để adopt, tránh
+#   #  lỗi "cannot re-use a name that is still in use". Cluster MỚI thì bỏ qua bước import:
+#   terraform import module.kyverno.helm_release.kyverno              kyverno/kyverno
+#   terraform import module.argocd.helm_release.argocd                argocd/argocd
+#   terraform import module.monitoring.helm_release.kube_prometheus_stack monitoring/kube-prometheus-stack
+#
+#   terraform apply       # cluster mới: tạo cả 3; cluster đang chạy: reconcile (gần no-op)
+# =============================================================================
 # module "kyverno" {
-#   source = "../../modules/kyverno"
+#   source     = "../../modules/kyverno"
 #   depends_on = [module.eks]
 # }
 #
