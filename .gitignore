@@ -10,3 +10,6 @@ ai-team-repo/
 # Python bytecode
 __pycache__/
 *.pyc
+
+# binary archive — không version control
+*.rar
