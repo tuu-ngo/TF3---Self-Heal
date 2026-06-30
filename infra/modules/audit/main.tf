@@ -4,7 +4,7 @@
 # -------------------------------------------------------------------
 
 resource "aws_s3_bucket" "audit" {
-  bucket        = "cdo-audit-${var.cluster_name}-${var.environment}"
+  bucket        = "cdo-audit-${var.aws_account_id}-${var.environment}"
   force_destroy = false
 
   object_lock_enabled = true

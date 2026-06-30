@@ -12,9 +12,10 @@ module "eks" {
 }
 
 module "audit" {
-  source       = "../../modules/audit"
-  cluster_name = var.cluster_name
-  environment  = var.environment
+  source         = "../../modules/audit"
+  cluster_name   = var.cluster_name
+  environment    = var.environment
+  aws_account_id = var.aws_account_id
 }
 
 module "iam" {

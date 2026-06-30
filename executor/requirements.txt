@@ -1,4 +1,4 @@
-# Runtime executor — bản tối thiểu. Bỏ comment khi chạy AWS/EKS thật (W12).
+# Runtime executor — bản đầy đủ cho AWS/EKS thật.
 requests>=2.31
-# kubernetes>=29.0        # urgent path: K8s API (restart/patch/rollout-undo)
-# boto3>=1.34             # idempotency (DynamoDB) + audit (S3 Object Lock)
+kubernetes>=29.0        # urgent path: K8s API (restart/patch/rollout-undo) + watcher poll
+boto3>=1.34             # SQS consumer + idempotency (DynamoDB) + audit (S3 Object Lock)

@@ -1,0 +1,63 @@
+# SA CDO executor (IRSA) + Role/RoleBinding least-privilege cho tenant-a, tenant-b.
+# Contract §3.D: SA tf3-cdo-controller trong self-heal-system; verb cấm (delete/clusterrole) không khai báo.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tf3-cdo-controller
+  namespace: self-heal-system
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::012619468490:role/cdo-executor-irsa-cdo-eks-cluster-dev
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cdo-executor-role
+  namespace: tenant-a
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list", "patch", "update"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cdo-executor-binding
+  namespace: tenant-a
+subjects:
+  - kind: ServiceAccount
+    name: tf3-cdo-controller
+    namespace: self-heal-system
+roleRef:
+  kind: Role
+  apiGroup: rbac.authorization.k8s.io
+  name: cdo-executor-role
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cdo-executor-role
+  namespace: tenant-b
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list", "patch", "update"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cdo-executor-binding
+  namespace: tenant-b
+subjects:
+  - kind: ServiceAccount
+    name: tf3-cdo-controller
+    namespace: self-heal-system
+roleRef:
+  kind: Role
+  apiGroup: rbac.authorization.k8s.io
+  name: cdo-executor-role

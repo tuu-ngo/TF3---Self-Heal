@@ -27,7 +27,10 @@ class K8sClient:
         self.enabled = _HAS_K8S and not cfg.k8s_mock
         if not self.enabled:
             return
-        if in_cluster:
+        # Auto-detect: trong pod (có KUBERNETES_SERVICE_HOST) → in-cluster config (SA token);
+        # local dev → kubeconfig. Bỏ qua tham số in_cluster để robust khi deploy thật.
+        import os
+        if os.environ.get("KUBERNETES_SERVICE_HOST"):
             k8s_config.load_incluster_config()
         else:
             k8s_config.load_kube_config()

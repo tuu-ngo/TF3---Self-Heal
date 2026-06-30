@@ -1,7 +1,5 @@
-resource "aws_cloudwatch_log_group" "eks_cluster" {
-  name              = "/aws/eks/${var.cluster_name}/cluster"
-  retention_in_days = 7
-}
+# NOTE: /aws/eks/<cluster>/cluster log group do EKS module tự tạo (create_cloudwatch_log_group=true).
+# KHÔNG khai báo lại ở đây (gây ResourceAlreadyExists). Bị merge team khôi phục → đã xóa lại.
 
 resource "aws_cloudwatch_log_group" "executor" {
   name              = "/cdo/${var.environment}/executor"

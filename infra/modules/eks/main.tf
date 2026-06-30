@@ -9,6 +9,12 @@ module "eks" {
   subnet_ids               = var.subnet_ids
   control_plane_subnet_ids = var.subnet_ids
 
+  # Public endpoint giới hạn theo IP workstation để kubectl được từ laptop (sandbox).
+  # Pods/nodes vẫn dùng private endpoint. Đổi CIDR nếu IP thay đổi.
+  cluster_endpoint_public_access       = true
+  cluster_endpoint_public_access_cidrs = var.public_access_cidrs
+  cluster_endpoint_private_access      = true
+
   # Required for IRSA (IAM Roles for Service Accounts)
   enable_irsa = true
 

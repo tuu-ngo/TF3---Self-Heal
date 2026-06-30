@@ -151,5 +151,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    print("mock AI on http://127.0.0.1:8080 (Ctrl-C to stop)")
-    HTTPServer(("127.0.0.1", 8080), Handler).serve_forever()
+    import os
+    bind = os.environ.get("MOCK_BIND", "0.0.0.0")  # 0.0.0.0 để Service K8s route được
+    print(f"mock AI on http://{bind}:8080 (Ctrl-C to stop)")
+    HTTPServer((bind, 8080), Handler).serve_forever()

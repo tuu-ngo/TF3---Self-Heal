@@ -8,7 +8,7 @@ metadata:
   name: cdo-telemetry-forwarder
   namespace: monitoring
   annotations:
-    eks.amazonaws.com/role-arn: REPLACE_WITH_FORWARDER_ROLE_ARN
+    eks.amazonaws.com/role-arn: arn:aws:iam::012619468490:role/cdo-forwarder-irsa-cdo-eks-cluster-dev
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -30,13 +30,13 @@ spec:
       serviceAccountName: cdo-telemetry-forwarder
       containers:
         - name: forwarder
-          image: REPLACE_WITH_FORWARDER_ECR_URL:latest
+          image: 012619468490.dkr.ecr.us-east-1.amazonaws.com/cdo-forwarder:v1
           ports:
             - name: http
               containerPort: 8080
           env:
             - name: CDO_TELEMETRY_QUEUE_URL
-              value: REPLACE_WITH_SQS_QUEUE_URL
+              value: https://sqs.us-east-1.amazonaws.com/012619468490/cdo-telemetry-dev
             - name: AWS_REGION
               value: "us-east-1"
             - name: CDO_TENANT_ID

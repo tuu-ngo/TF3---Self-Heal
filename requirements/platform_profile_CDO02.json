@@ -1,0 +1,168 @@
+{
+  "profile_name": "cdo-02-self-heal-dev",
+  "system": "K8S_NATIVE",
+  "default_namespace": "tenant-a",
+  "default_deployment_template": "deployment/{{target_service}}",
+  "default_service": "cdo-sample-api",
+  "allowed_namespaces": [
+    "tenant-a",
+    "tenant-b"
+  ],
+  "services": [
+    "cdo-sample-api",
+    "notification-service"
+  ],
+  "metric_types": [
+    "mem",
+    "cpu",
+    "latency",
+    "error_rate",
+    "restart",
+    "readiness",
+    "capacity"
+  ],
+  "fault_runbook_mapping": {
+    "oom_kill": "OOMPatchMemoryRunbook",
+    "oom_kill_b": "OOMPatchMemoryRunbook",
+    "memory_pressure": "OOMPatchMemoryRunbook",
+    "oom_persist": "OOMPatchMemoryRunbook",
+    "bad_deploy": "BadDeployRollbackRunbook",
+    "scale_capacity": "CapacityScaleRunbook",
+    "crashloop": "ServiceStuckRestartRunbook",
+    "crashloop_b": "ServiceStuckRestartRunbook",
+    "latency": "ServiceStuckRestartRunbook",
+    "latency_b": "ServiceStuckRestartRunbook",
+    "service_stuck": "ServiceStuckRestartRunbook",
+    "default": "ServiceStuckRestartRunbook"
+  },
+  "dependency_graph": {
+    "cdo-sample-api": [],
+    "notification-service": []
+  },
+  "runbooks": {
+    "OOMPatchMemoryRunbook": {
+      "name": "OOMPatchMemoryRunbook",
+      "description": "OOMKilled / high container memory pressure (oom_kill, oom_kill_b, memory_pressure, oom_persist) -> raise the deployment memory limit. URGENT: CDO patches the K8s Deployment directly.",
+      "pattern_type": "urgent",
+      "action_plan": [
+        {
+          "step": 1,
+          "action": "PATCH_MEMORY_LIMIT",
+          "target": "deployment/{{target_service}}",
+          "params": {
+            "namespace": "tenant-a",
+            "container": "podinfo",
+            "memory_request_mb": 128,
+            "memory_limit_mb": 256
+          }
+        }
+      ],
+      "blast_radius_config": {
+        "max_pod_impact_pct": 25,
+        "circuit_breaker_error_rate": 0.2,
+        "allowed_namespaces": [
+          "tenant-a",
+          "tenant-b"
+        ]
+      },
+      "verify_policy": {
+        "window_seconds": 120,
+        "success_conditions": [
+          "pod_ready == true",
+          "restart_count_no_increase == true"
+        ]
+      }
+    },
+    "BadDeployRollbackRunbook": {
+      "name": "BadDeployRollbackRunbook",
+      "description": "Readiness failing after a new rollout (bad_deploy) -> undo the last rollout to the previous healthy ReplicaSet. URGENT.",
+      "pattern_type": "urgent",
+      "action_plan": [
+        {
+          "step": 1,
+          "action": "ROLLOUT_UNDO",
+          "target": "deployment/{{target_service}}",
+          "params": {
+            "namespace": "tenant-a"
+          }
+        }
+      ],
+      "blast_radius_config": {
+        "max_pod_impact_pct": 25,
+        "circuit_breaker_error_rate": 0.2,
+        "allowed_namespaces": [
+          "tenant-a",
+          "tenant-b"
+        ]
+      },
+      "verify_policy": {
+        "window_seconds": 120,
+        "success_conditions": [
+          "pod_ready == true",
+          "service_error_rate < 0.01"
+        ]
+      }
+    },
+    "CapacityScaleRunbook": {
+      "name": "CapacityScaleRunbook",
+      "description": "Sustained capacity pressure / HPA pinned at max (scale_capacity) -> scale out replicas. DEFERRED: CDO commits the replica change to Git and ArgoCD syncs it.",
+      "pattern_type": "deferred",
+      "action_plan": [
+        {
+          "step": 1,
+          "action": "SCALE_REPLICAS",
+          "target": "deployment/{{target_service}}",
+          "params": {
+            "namespace": "tenant-a",
+            "replicas": 4
+          }
+        }
+      ],
+      "blast_radius_config": {
+        "max_pod_impact_pct": 25,
+        "circuit_breaker_error_rate": 0.2,
+        "allowed_namespaces": [
+          "tenant-a",
+          "tenant-b"
+        ]
+      },
+      "verify_policy": {
+        "window_seconds": 120,
+        "success_conditions": [
+          "pod_ready == true"
+        ]
+      }
+    },
+    "ServiceStuckRestartRunbook": {
+      "name": "ServiceStuckRestartRunbook",
+      "description": "Service stuck: CrashLoopBackOff, latency spike or generic unhealthy pod (crashloop, crashloop_b, latency, latency_b, default) -> rolling restart of the deployment. URGENT default runbook.",
+      "pattern_type": "urgent",
+      "action_plan": [
+        {
+          "step": 1,
+          "action": "RESTART_DEPLOYMENT",
+          "target": "deployment/{{target_service}}",
+          "params": {
+            "namespace": "tenant-a",
+            "grace_period_seconds": 30
+          }
+        }
+      ],
+      "blast_radius_config": {
+        "max_pod_impact_pct": 25,
+        "circuit_breaker_error_rate": 0.2,
+        "allowed_namespaces": [
+          "tenant-a",
+          "tenant-b"
+        ]
+      },
+      "verify_policy": {
+        "window_seconds": 120,
+        "success_conditions": [
+          "pod_ready == true",
+          "service_latency_p95 < 200.0"
+        ]
+      }
+    }
+  }
+}

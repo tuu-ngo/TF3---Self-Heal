@@ -16,21 +16,15 @@ terraform {
     }
   }
 
+  # State bucket nằm ở ap-southeast-1 (tạo từ trước); resource deploy ở us-east-1.
+  # State region độc lập với resource region — hợp lệ.
   backend "s3" {
-    bucket       = "cdo-tf-state-938145531618-dev"
+    bucket       = "cdo-tf-state-012619468490-dev"
     key          = "envs/dev/terraform.tfstate"
-    region       = "us-east-1"
-    use_lockfile = true  # native S3 locking (Terraform >= 1.10) — không cần DynamoDB
+    region       = "ap-southeast-1"
+    use_lockfile = true
     encrypt      = true
   }
-}
-
-data "aws_eks_cluster" "main" {
-  name = var.cluster_name
-}
-
-data "aws_eks_cluster_auth" "main" {
-  name = var.cluster_name
 }
 
 provider "aws" {
@@ -45,16 +39,15 @@ provider "aws" {
   }
 }
 
+# PHASE 1: cluster chưa tồn tại → kubernetes/helm provider để dummy (localhost).
+# Không có module nào dùng 2 provider này ở phase-1 (kyverno/argocd/monitoring đang comment).
+# PHASE 2 (sau khi EKS ACTIVE): thay file này bằng providers_phase2.tf.disabled (provider trỏ cluster thật).
 provider "kubernetes" {
-  host                   = data.aws_eks_cluster.main.endpoint
-  cluster_ca_certificate = base64decode(data.aws_eks_cluster.main.certificate_authority[0].data)
-  token                  = data.aws_eks_cluster_auth.main.token
+  host = "https://localhost"
 }
 
 provider "helm" {
   kubernetes {
-    host                   = data.aws_eks_cluster.main.endpoint
-    cluster_ca_certificate = base64decode(data.aws_eks_cluster.main.certificate_authority[0].data)
-    token                  = data.aws_eks_cluster_auth.main.token
+    host = "https://localhost"
   }
 }
