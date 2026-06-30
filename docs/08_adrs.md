@@ -68,7 +68,7 @@ Khi AI trả `pattern_type: "urgent"`, CDO executor gọi Kubernetes API trực 
 
 ## ADR-003 - Chọn namespace-based tenant isolation và RBAC least privilege
 
-- **Status:** Accepted (cập nhật 2026-06-29: executor SA chuyển sang `self-heal-system` theo contract §3.D — xem note cuối ADR)
+- **Status:** Accepted
 - **Date:** 2026-06-23
 
 ### Context
@@ -85,9 +85,7 @@ tenant-b
 platform
 ```
 
-Executor chỉ được cấp quyền theo Role/RoleBinding cần thiết để thao tác target namespace đã cho phép.
-
-> **Update 2026-06-29 — executor namespace = `self-heal-system` (không phải `platform`):** Deployment Contract §3.D yêu cầu SA `tf3-cdo-controller` nằm trong `self-heal-system`. CDO chốt theo contract: executor pod + SA đặt trong `self-heal-system`; RoleBinding sang `tenant-a`/`tenant-b` để patch workload. IRSA trust policy (`infra/modules/iam/main.tf`) bind `system:serviceaccount:self-heal-system:tf3-cdo-controller`. Đã đồng bộ trong `k8s/`, `manifests/executor/`, `manifests/rbac/`. Phần "tenant-a/tenant-b/platform" của decision gốc vẫn giữ nguyên; chỉ vị trí executor đổi từ `platform` → `self-heal-system`.
+Executor chạy trong `platform` namespace và chỉ được cấp quyền theo Role/RoleBinding cần thiết để thao tác target namespace đã cho phép.
 
 ### Consequences
 
@@ -307,44 +305,3 @@ CDO-02 chọn **Kyverno** để implement Admission Control Layer với 3 Cluste
 - **OPA Gatekeeper**: Admission webhook mạnh hơn, có audit controller và separation giữa policy schema và logic. Nhưng Rego learning curve quá cao cho W12 timeline. Rejected.
 - **Custom ValidatingWebhookConfiguration**: Linh hoạt nhất nhưng phải viết webhook server, TLS cert, registration từ đầu. Không hợp lý cho scope 6 ngày. Rejected.
 - **Chỉ dùng Safety Gate + RBAC (không có Layer 3)**: Đủ cho happy path demo nhưng không bịt được gap executor bug bypass và RBAC value blindness. Rejected — vi phạm trainer feedback về "Zero unsafe action" tại cluster level.
-
----
-
-## ADR-010 - S3 Object Lock GOVERNANCE mode (thay vì COMPLIANCE) cho audit sandbox
-
-- **Status:** Accepted — deviation có chủ đích so với Deployment Contract §4.B
-- **Date:** 2026-06-29
-- **Extends:** ADR-004 (làm rõ phần "mode") · **Liên quan:** `infra/modules/audit/main.tf`, `executor/audit.py`
-
-### Context
-
-Deployment Contract §4.B (Tamper-Evident Audit Logging) quy định dùng **S3 Object Lock — Compliance mode**, retention tối thiểu **90 ngày**. Compliance mode khóa cứng tuyệt đối: **không ai** (kể cả `root`/admin account) xóa hoặc rút ngắn retention của object trước hạn được — chỉ có thể chờ hết 90 ngày.
-
-Triển khai hiện tại (`infra/modules/audit/main.tf`) đang đặt **GOVERNANCE mode** + retention 90 ngày. Đây là điểm **lệch contract** cần ghi nhận tường minh thay vì để âm thầm.
-
-Bối cảnh sandbox capstone:
-- Tài nguyên AWS dùng chung/tạm; sau buổi chấm cần **teardown sạch** (`terraform destroy`). Compliance mode sẽ giữ object đến hết 90 ngày, **chặn destroy bucket** và phát sinh chi phí lưu trữ ngoài ý muốn.
-- Trong 2 tuần build, audit ghi liên tục từ nhiều lần chạy thử/scenario lỗi → cần xóa được dữ liệu rác test khi reset môi trường.
-- Compliance mode mà cấu hình sai (vd nhầm retention) là **không thể sửa** → rủi ro khóa cứng tài nguyên trong suốt capstone.
-
-### Decision
-
-CDO-02 dùng **S3 Object Lock — GOVERNANCE mode**, retention 90 ngày cho bucket audit trong phạm vi **sandbox capstone**:
-- Vẫn đạt mục tiêu **tamper-evident**: object không thể ghi đè/xóa qua đường thường; mọi thao tác xóa trước hạn **bắt buộc** quyền đặc biệt `s3:BypassGovernanceRetention` + header `x-amz-bypass-governance-retention:true` → để lại dấu vết CloudTrail.
-- Giữ được khả năng **teardown/reset** môi trường khi cần (tránh khóa cứng).
-- Lựa chọn này đã được nêu ở ADR-004 ("confirmed trainer feedback W11"); ADR-010 ghi nhận chính thức đây là **deviation so với §4.B** kèm lý do.
-
-**Đường nâng cấp production:** khi lên môi trường thật, đổi `mode = "COMPLIANCE"` trong `aws_s3_bucket_object_lock_configuration.audit` (1 dòng) + bỏ quyền `s3:BypassGovernanceRetention` khỏi mọi principal. Không thay đổi code `audit.py` (PutObject giữ nguyên).
-
-### Consequences
-
-- **Pro:** Đạt tamper-evident + retention 90 ngày như tinh thần contract; không khóa cứng tài nguyên sandbox; teardown sạch sau buổi chấm.
-- **Pro:** Mọi bypass đều cần quyền riêng + ghi CloudTrail → vẫn audit được "ai đã bypass".
-- **Trade-off (đã chấp nhận):** Yếu hơn Compliance ở chỗ admin có `s3:BypassGovernanceRetention` về lý thuyết xóa được object trước hạn. Giảm thiểu bằng: KHÔNG gắn quyền bypass vào IRSA của executor/ai-engine (xem `infra/modules/iam` — không có statement bypass); chỉ admin thủ công mới làm được.
-- **Trade-off:** Cần nói rõ ở buổi chấm rằng đây là deviation sandbox, có đường nâng cấp Compliance 1 dòng cho production.
-
-### Alternatives considered
-
-- **Compliance mode đúng contract §4.B:** mạnh nhất về tamper-proof, nhưng khóa cứng 90 ngày → không destroy được bucket, rủi ro chi phí và không sửa được nếu cấu hình sai trong sandbox. Rejected cho capstone, **Accepted cho production**.
-- **Không bật Object Lock, chỉ versioning + bucket policy:** dễ teardown nhất nhưng tamper-evident yếu (admin/policy có thể xóa version) → không đạt yêu cầu. Rejected.
-- **CloudWatch Logs only:** đã loại ở ADR-004 (tamper-evident yếu hơn). Rejected.

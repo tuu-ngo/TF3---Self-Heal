@@ -17,12 +17,20 @@ terraform {
   }
 
   backend "s3" {
-    bucket       = "cdo-tf-state-012619468490-dev"
+    bucket       = "cdo-tf-state-938145531618-dev"
     key          = "envs/dev/terraform.tfstate"
     region       = "us-east-1"
-    use_lockfile = true
+    use_lockfile = true  # native S3 locking (Terraform >= 1.10) — không cần DynamoDB
     encrypt      = true
   }
+}
+
+data "aws_eks_cluster" "main" {
+  name = var.cluster_name
+}
+
+data "aws_eks_cluster_auth" "main" {
+  name = var.cluster_name
 }
 
 provider "aws" {
@@ -37,14 +45,16 @@ provider "aws" {
   }
 }
 
-# kubernetes + helm provider cấu hình sau khi EKS tồn tại (phase 2)
-# Xem: infra/envs/dev/providers_phase2.tf.disabled
 provider "kubernetes" {
-  host = "https://localhost"
+  host                   = data.aws_eks_cluster.main.endpoint
+  cluster_ca_certificate = base64decode(data.aws_eks_cluster.main.certificate_authority[0].data)
+  token                  = data.aws_eks_cluster_auth.main.token
 }
 
 provider "helm" {
   kubernetes {
-    host = "https://localhost"
+    host                   = data.aws_eks_cluster.main.endpoint
+    cluster_ca_certificate = base64decode(data.aws_eks_cluster.main.certificate_authority[0].data)
+    token                  = data.aws_eks_cluster_auth.main.token
   }
 }

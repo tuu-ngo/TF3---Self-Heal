@@ -1,0 +1,31 @@
+{
+  "_comment": "TC-01 Service stuck / latency spike (tenant-a) → RESTART_DEPLOYMENT (urgent). Day-1 smoke test.",
+  "tenant_namespace": "tenant-a",
+  "correlation_id": "tc-01-0000-0000-0000-000000000001",
+  "telemetry_window": [
+    {
+      "ts": "2026-06-29T10:00:00.123Z",
+      "tenant_id": "6c8b4b2b-4d45-4209-a1b4-4b532d56a31c",
+      "service": "checkout-svc",
+      "signal_name": "service_latency_p95",
+      "value": 1850.0,
+      "labels": {
+        "system": "E-COMMERCE",
+        "namespace": "tenant-a",
+        "deployment": "cdo-sample-api"
+      }
+    },
+    {
+      "ts": "2026-06-29T10:00:01.000Z",
+      "tenant_id": "6c8b4b2b-4d45-4209-a1b4-4b532d56a31c",
+      "service": "checkout-svc",
+      "signal_name": "service_unhealthy",
+      "value": "Readiness probe failed: HTTP 500",
+      "labels": {
+        "system": "E-COMMERCE",
+        "namespace": "tenant-a",
+        "deployment": "cdo-sample-api"
+      }
+    }
+  ]
+}

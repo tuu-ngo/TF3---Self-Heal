@@ -1,22 +1,22 @@
 {
-  "scenario": "cross_tenant",
-  "description": "AI target sai tenant → safety DENY cross-tenant",
+  "scenario": "verify_escalate",
+  "description": "Heal xong nhưng verify xác định CHƯA giải quyết → ESCALATE (AI trả bundle, CDO merge)",
   "tenant_namespace": "tenant-a",
-  "correlation_id": "sc11-0000-0000-0000-000000000000",
-  "expected_outcome": "escalated:denied_cross_tenant",
+  "correlation_id": "sc14-0000-0000-0000-000000000000",
+  "expected_outcome": "escalated:verify_escalate",
   "expected_resolved": false,
   "telemetry_window": [
     {
       "ts": "2026-06-29T10:00:00.000Z",
       "tenant_id": "6c8b4b2b-4d45-4209-a1b4-4b532d56a31c",
       "service": "checkout-svc",
-      "signal_name": "pod_waiting_reason",
-      "value": "CrashLoopBackOff",
+      "signal_name": "service_error_rate",
+      "value": 0.4,
       "labels": {
         "system": "K8S_NATIVE",
         "namespace": "tenant-a",
         "deployment": "cdo-sample-api",
-        "scenario": "cross_tenant"
+        "scenario": "verify_escalate"
       }
     }
   ]

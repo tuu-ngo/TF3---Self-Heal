@@ -142,13 +142,13 @@ CDO-02 dùng namespace-based RBAC:
 
 | Namespace | Purpose |
 |---|---|
-| `self-heal-system` | **CDO executor + SA `tf3-cdo-controller` (contract-new-4 §3.D)** + AI Engine pod (CDO deploy từ image AI bàn giao) |
+| `platform` | Chạy CDO executor, telemetry collector (thiết kế hiện tại) |
 | `tenant-a` | Workload tenant A |
 | `tenant-b` | Workload tenant B |
 | `argocd` | ArgoCD controller, repo-server, application-controller |
-| `platform` | Namespace dùng chung (telemetry collector/tiện ích nếu cần) — **không còn host executor** |
+| `self-heal-system` | AI Engine pod (do CDO deploy từ image AI bàn giao) + **CDO controller SA `tf3-cdo-controller` theo contract-new-4 §3.D** |
 
-> **RESOLVED (contract-new-4 §3.D):** Deployment contract yêu cầu CDO controller ServiceAccount `tf3-cdo-controller` nằm trong `self-heal-system` — CDO đã chốt theo contract. Executor pod + SA đặt trong `self-heal-system`; IRSA trust policy (`infra/modules/iam/main.tf`) bind đúng `system:serviceaccount:self-heal-system:tf3-cdo-controller`; RoleBinding sang `tenant-a`/`tenant-b` để patch workload. Đã phản ánh trong `k8s/01-rbac.yaml`, `k8s/03-executor.yaml`, `manifests/executor/deployment.yaml`, `manifests/rbac/executor-rbac.yaml`.
+> **Conflict cần giải quyết W12 (contract-new-4 §3.D):** Deployment contract yêu cầu CDO controller ServiceAccount tên `tf3-cdo-controller` phải nằm trong namespace `self-heal-system`. Thiết kế hiện tại của CDO đặt executor trong namespace `platform`. Trước W12 implementation, CDO phải quyết định: (a) di chuyển executor sang `self-heal-system`, hoặc (b) push-back với AI team để giữ `platform`. Quyết định này ảnh hưởng IRSA trust policy và RBAC binding.
 
 RBAC principles:
 
@@ -208,7 +208,7 @@ Secrets dự kiến:
 | Audit bucket config | Terraform variables/outputs | Executor/deploy pipeline |
 | Idempotency lock table config | Terraform outputs / env var | CDO executor |
 | **ArgoCD Git credential** (pull manifest repo) | ArgoCD `repo` Secret trong namespace `argocd` — dùng GitHub App private key hoặc SSH deploy key | ArgoCD repo-server |
-| **CDO executor Git credential** (push commit deferred path) | Kubernetes Secret trong namespace `self-heal-system` — GitHub App token, mount vào executor pod qua env var | CDO executor (deferred path only) |
+| **CDO executor Git credential** (push commit deferred path) | Kubernetes Secret trong namespace `platform` — GitHub App token, mount vào executor pod qua env var | CDO executor (deferred path only) |
 
 **Lưu ý quan trọng về Git credential:**
 

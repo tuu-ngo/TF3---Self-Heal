@@ -27,7 +27,7 @@ provider "aws" {
 
 # Bucket name gắn account ID để tránh conflict tên global S3
 locals {
-  bucket_name = "cdo-tf-state-012619468490-dev"
+  bucket_name = "cdo-tf-state-938145531618-dev"
 }
 
 resource "aws_s3_bucket" "tfstate" {
@@ -68,7 +68,7 @@ resource "aws_s3_bucket_public_access_block" "tfstate" {
   restrict_public_buckets = true
 }
 
-# Bucket policy: chỉ account 012619468490 có quyền đọc/ghi state
+# Bucket policy: chỉ account 938145531618 có quyền đọc/ghi state
 resource "aws_s3_bucket_policy" "tfstate" {
   bucket = aws_s3_bucket.tfstate.id
 
@@ -78,7 +78,7 @@ resource "aws_s3_bucket_policy" "tfstate" {
       {
         Sid       = "AllowTerraformStateAccess"
         Effect    = "Allow"
-        Principal = { AWS = "arn:aws:iam::012619468490:root" }
+        Principal = { AWS = "arn:aws:iam::938145531618:root" }
         Action = [
           "s3:GetObject",
           "s3:PutObject",

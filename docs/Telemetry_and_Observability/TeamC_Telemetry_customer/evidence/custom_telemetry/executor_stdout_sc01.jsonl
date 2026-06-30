@@ -1,0 +1,15 @@
+{"timestamp": "2026-06-30T06:00:45.815Z", "correlation_id": "sc01-0000-0000-0000-000000000000", "tenant_id": "6c8b4b2b-4d45-4209-a1b4-4b532d56a31c", "event": "alert_received", "namespace": "tenant-a"}
+{"timestamp": "2026-06-30T06:00:45.815Z", "correlation_id": "sc01-0000-0000-0000-000000000000", "tenant_id": "6c8b4b2b-4d45-4209-a1b4-4b532d56a31c", "event": "detect_called"}
+{"timestamp": "2026-06-30T06:00:45.834Z", "correlation_id": "sc01-0000-0000-0000-000000000000", "tenant_id": "6c8b4b2b-4d45-4209-a1b4-4b532d56a31c", "event": "detect_response_received", "result": "ok", "anomaly": true, "confidence": 0.92, "severity": 0.85}
+{"timestamp": "2026-06-30T06:00:45.834Z", "correlation_id": "sc01-0000-0000-0000-000000000000", "tenant_id": "6c8b4b2b-4d45-4209-a1b4-4b532d56a31c", "event": "pre_decide_decision", "decision": "proceed_to_decide"}
+{"timestamp": "2026-06-30T06:00:45.834Z", "correlation_id": "sc01-0000-0000-0000-000000000000", "tenant_id": "6c8b4b2b-4d45-4209-a1b4-4b532d56a31c", "event": "idempotency_lock_acquired", "idempotency_key": "701029da-eaef-4106-b4eb-08f06f969bf3"}
+{"timestamp": "2026-06-30T06:00:45.834Z", "correlation_id": "sc01-0000-0000-0000-000000000000", "tenant_id": "6c8b4b2b-4d45-4209-a1b4-4b532d56a31c", "event": "decide_called", "idempotency_key": "701029da-eaef-4106-b4eb-08f06f969bf3"}
+{"timestamp": "2026-06-30T06:00:45.836Z", "correlation_id": "sc01-0000-0000-0000-000000000000", "tenant_id": "6c8b4b2b-4d45-4209-a1b4-4b532d56a31c", "event": "action_plan_received", "action_type": "PATCH_MEMORY_LIMIT", "pattern_type": "urgent", "runbook": "OOMPatchMemoryRunbook", "cost_cap_exceeded": false}
+{"timestamp": "2026-06-30T06:00:45.836Z", "correlation_id": "sc01-0000-0000-0000-000000000000", "tenant_id": "6c8b4b2b-4d45-4209-a1b4-4b532d56a31c", "event": "safety_passed", "decision": "allow", "checks": "pattern_type_valid,verify_policy_present,action_allow_list,pattern_routing,tenant_match,blast_radius"}
+{"timestamp": "2026-06-30T06:00:45.836Z", "correlation_id": "sc01-0000-0000-0000-000000000000", "tenant_id": "6c8b4b2b-4d45-4209-a1b4-4b532d56a31c", "event": "rollback_snapshot_captured", "namespace": "tenant-a", "snapshot_type": "urgent"}
+{"timestamp": "2026-06-30T06:00:45.836Z", "correlation_id": "sc01-0000-0000-0000-000000000000", "tenant_id": "6c8b4b2b-4d45-4209-a1b4-4b532d56a31c", "event": "execute_done", "namespace": "tenant-a", "action_type": "PATCH_MEMORY_LIMIT", "result": "success", "target": "deployment/cdo-sample-api"}
+{"timestamp": "2026-06-30T06:00:45.836Z", "correlation_id": "sc01-0000-0000-0000-000000000000", "tenant_id": "6c8b4b2b-4d45-4209-a1b4-4b532d56a31c", "event": "verify_called"}
+{"timestamp": "2026-06-30T06:00:45.839Z", "correlation_id": "sc01-0000-0000-0000-000000000000", "tenant_id": "6c8b4b2b-4d45-4209-a1b4-4b532d56a31c", "event": "verify_done", "result": "ok", "next_action": "DONE", "success": true, "regression": false}
+{"timestamp": "2026-06-30T06:00:45.839Z", "correlation_id": "sc01-0000-0000-0000-000000000000", "tenant_id": "6c8b4b2b-4d45-4209-a1b4-4b532d56a31c", "event": "incident_closed", "result": "auto_resolved"}
+
+>>> OUTCOME: auto_resolved

@@ -1,0 +1,12 @@
+[
+  {
+    "traceId": "abc",
+    "spanId": "def",
+    "serviceName": "checkout-svc",
+    "name": "GET /checkout",
+    "status": {
+      "code": "ERROR",
+      "message": "upstream 503"
+    }
+  }
+]

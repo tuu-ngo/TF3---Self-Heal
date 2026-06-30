@@ -4,7 +4,7 @@
 **Report owner:** CDO-02  
 **Phạm vi:** CDO/CDO-02  
 **Ngày tạo:** 2026-06-29  
-**Trạng thái:** v2.1 - đồng bộ với trạng thái code thực tế (14 scenario sc*.json + run_scenarios.py + circuit breaker + k8s client real-patch đã có; số đo mock-mode đã điền).  
+**Trạng thái:** v2.0 - update theo thay đổi dự án hiện tại.  
 
 > File này là tài liệu QA/Test của phía CDO-02. Chỉ kiểm tra CDO platform có tích hợp đúng với AI Engine image, enforce safety, execute/deny đúng, verify đúng và ghi evidence đầy đủ hay không.
 
@@ -105,8 +105,7 @@ summary auto_resolve_rate / unsafe_action_count / audit_coverage
 | Safety Gate | `executor/safety_gate.py` | chặn cross-tenant, action lạ, thiếu verify policy, blast-radius |
 | Audit Logger | `executor/audit.py` | stdout JSON; S3 nếu bucket/env ready |
 | Idempotency | `executor/idempotency.py` | in-memory fallback; DynamoDB khi AWS env ready |
-| K8s Client | `executor/k8s_client.py` | restart/patch-memory/rollout-undo có code patch THẬT (strategic-merge + server-side `dry_run=All`); chạy stub khi `CDO_K8S_MOCK=true` hoặc thiếu lib, chờ cluster thật để validate runtime |
-| Circuit Breaker | `executor/circuit_breaker.py` | safety sub-checkpoint #5/5; có unit test `tests/test_circuit_breaker.py` |
+| K8s Client | `executor/k8s_client.py` | hiện mutating action vẫn stub/TODO |
 | Urgent Executor | `executor/executors/urgent.py` | dry-run trước rồi execute K8s action |
 | Deferred Executor | `executor/executors/deferred.py` | GitOps path hiện vẫn stub |
 | AI Engine wrapper | `manifests/ai-engine/deployment.yaml.template` | deploy image AI team bàn giao |
@@ -186,15 +185,15 @@ executor gọi được /v1/detect, /v1/decide, /v1/verify
 
 | Test type | Tool / Method | Scope | Status hiện tại | Evidence |
 |---|---|---|---|---|
-| Safety unit test | `executor/tests/test_safety_gate.py` | TC-07/08/10, blast-radius, routing | ✅ pass | pytest (13 passed) |
-| Circuit breaker unit test | `executor/tests/test_circuit_breaker.py` | TC-15 circuit breaker | ✅ pass | pytest (13 passed) |
-| Contract/schema test | scenario JSON validation | telemetry required fields, 12 signal enum | scenario JSON hợp lệ; validator riêng chưa tách | validated JSON |
-| Real AI integration | executor gọi AI pod thật | detect/decide/verify schema, latency, error handling | chờ AI image bàn giao | rollout + executor log |
-| Mock integration | `mock_ai_server.py` | scenario-driven detect/decide/verify | ✅ pass | stdout audit |
-| EKS action test | podinfo + executor | restart/patch/rollback thật | code patch sẵn; chờ cluster `cdo-eks-cluster-dev` để validate real | kubectl + audit |
-| Multi-tenant isolation | safety + RBAC + Kyverno | 0 cross-tenant mutation | ✅ app gate pass (sc11); runtime RBAC chờ cluster | audit + `kubectl auth can-i` |
-| Audit evidence | stdout/S3 | trace theo `correlation_id` | ✅ stdout JSONL đủ chuỗi; S3 chờ bucket/env runtime | stdout/S3 object |
-| Scenario simulation | `executor/run_scenarios.py` | >=10 scenario, >=4h loop | ✅ 14 scenario chạy; loop `--duration 4h` sẵn sàng | console summary / `run_report.json` |
+| Safety unit test | `executor/tests/test_safety_gate.py` | TC-07/08/10, blast-radius, routing | có sẵn | pytest output |
+| Pre-Decide unit test | cần thêm test | TC-19/20/21 | chưa thấy file test | pytest output |
+| Contract/schema test | scenario JSON validation | telemetry required fields, 12 signal enum | cần làm | validated JSON |
+| Real AI integration | executor gọi AI pod thật | detect/decide/verify schema, latency, error handling | chờ AI image | rollout + executor log |
+| Mock integration | `mock_ai_server.py` | fallback happy path | có sẵn | stdout audit |
+| EKS action test | podinfo + executor | restart/patch/rollback thật | chờ Team A/B; K8s client còn stub | kubectl + audit |
+| Multi-tenant isolation | safety + RBAC + Kyverno | 0 cross-tenant mutation | app gate có test; runtime chờ Team B | audit + `kubectl auth can-i` |
+| Audit evidence | stdout/S3 | trace theo `correlation_id` | stdout có; S3 chờ bucket/env | stdout/S3 object |
+| Scenario simulation | `run_all.py` hoặc loop | >=10 scenario, >=4h | cần tạo | `run_report.json` |
 | Load test | k6/Locust optional | 100 events/min hoặc API load | P2/CUT | load summary |
 
 Coverage gap phải ghi thật. Ví dụ: nếu K8s action vẫn stub thì EKS action test chưa pass real, không được ghi xanh.
@@ -246,37 +245,39 @@ Designed-only không được tính là auto_resolved.
 
 **Mục đích QA/Test:** xác định file `.py` và `.json` cần tạo để chạy được scenario. Mục này trả lời câu hỏi: "QA cần chuẩn bị artifact nào trước khi chạy test?"
 
-Repo hiện đã có **14 scenario `sc*.json` + runner `run_scenarios.py`** (đã chạy, xem §9/§15):
+Hiện repo chỉ có:
 
 ```text
-executor/run_scenarios.py                      # runner: loop, đo auto-resolve rate, --duration 4h
-executor/mock_ai_server.py                     # mock AI scenario-driven (detect/decide/verify)
-executor/scenarios/sc01_oom_kill_a.json        # tenant-a  -> auto_resolved (PATCH_MEMORY_LIMIT)
-executor/scenarios/sc02_crashloop_a.json       # tenant-a  -> auto_resolved
-executor/scenarios/sc03_latency_a.json         # tenant-a  -> auto_resolved
-executor/scenarios/sc04_bad_deploy_a.json      # tenant-a  -> auto_resolved (ROLLOUT_UNDO)
-executor/scenarios/sc05_memory_pressure_a.json # tenant-a  -> auto_resolved
-executor/scenarios/sc06_oom_kill_b.json        # tenant-b  -> auto_resolved
-executor/scenarios/sc07_crashloop_b.json       # tenant-b  -> auto_resolved
-executor/scenarios/sc08_latency_b.json         # tenant-b  -> auto_resolved
-executor/scenarios/sc09_oom_persist_a.json     # tenant-a  -> rolled_back (auto rollback)
-executor/scenarios/sc10_scale_capacity_a.json  # tenant-a  -> auto_resolved
-executor/scenarios/sc11_cross_tenant_a.json    # safety    -> denied_cross_tenant
-executor/scenarios/sc12_unsafe_action_a.json   # safety    -> denied_action_not_allowed
-executor/scenarios/sc13_low_conf_a.json        # safety    -> low_confidence_no_action
-executor/scenarios/sc14_verify_escalate_a.json # safety    -> verify_escalate (+ escalation bundle)
-executor/scenarios/tc01_service_stuck.json     # smoke test (run_scenarios.py bỏ qua tc*)
+TF3-Self-Heal-Agent-AWS/executor/scenarios/tc01_service_stuck.json
+```
+
+Cần tạo thêm:
+
+```text
+executor/scenarios/preprocess_telemetry.py
+executor/scenarios/run_all.py
+executor/scenarios/tc02_service_stuck_tenant_b.json
+executor/scenarios/tc03_error_rate_log_event.json
+executor/scenarios/tc04_oom_memory_pressure.json
+executor/scenarios/tc05_queue_backlog.json
+executor/scenarios/tc06_secret_expiry.json
+executor/scenarios/tc08_cross_tenant.json
+executor/scenarios/tc09_action_not_allowed.json
+executor/scenarios/tc10_blast_radius_exceeded.json
+executor/scenarios/tc11_duplicate_idempotency.json
+executor/scenarios/tc12_ai_503.json
+executor/scenarios/tc18_tenant_mismatch.json
+executor/scenarios/tc19_low_confidence.json
+executor/scenarios/tc20_medium_conf_high_sev.json
 ```
 
 Vai trò của từng loại file:
 
 | Loại file | Dùng để làm gì |
 |---|---|
-| `mock_ai_server.py` | mock AI trả detect/decide/verify theo từng scenario (unblock test khi chưa có AI image) |
-| `sc*.json` | input cho executor chạy từng scenario; có `expected_outcome` để runner tự chấm |
-| `run_scenarios.py` | chạy toàn bộ sc*.json, đo auto-resolve rate, hỗ trợ `--duration 4h` cho test window |
-
-> Còn thiếu (P2, nếu muốn evidence mạnh hơn): `preprocess_telemetry.py` (chuẩn hóa raw log → `telemetry_window[]`) và xuất `run_report.json` ra file (hiện runner in summary ra console).
+| `preprocess_telemetry.py` | chuẩn hóa raw logs/metrics/traces thành `telemetry_window[]` |
+| `tc*.json` | input cho executor chạy từng scenario |
+| `run_all.py` | chạy nhiều scenario, ghi kết quả ra `run_report.json` |
 
 ## 8. Telemetry, Logs, Metrics, Traces
 
@@ -343,17 +344,15 @@ Prometheus/Grafana evidence chỉ được dùng khi Team B cung cấp output hi
 
 | Requirement | Target | Measured | Mode | Evidence |
 |---|---:|---|---|---|
-| Scenario count | >=10 | **14** | mock/offline | `run_scenarios.py` console summary |
-| Simulation window | >=4h | capability sẵn (1 lượt = 14 incident); **chưa chạy đủ 4h** | mock/offline | `--duration 4h` loop |
-| Auto-resolve rate | >=60% | **71.4% (10/14)** | mock/offline | `run_scenarios.py` summary |
-| Match expected outcome | 100% | **14/14** | mock/offline | `run_scenarios.py` summary |
-| Unsafe action count | 0 | **0** (sc11/sc12 deny đúng) | mock/offline | audit JSONL `denied_*` |
-| Cross-tenant mutation | 0 | **0** (sc11 `denied_cross_tenant`) | mock/offline | audit JSONL |
-| Unit test | pass | **13/13 passed** | offline | `pytest -q` |
-| Audit coverage | 100% | **100%** chuỗi `correlation_id` per scenario | mock/offline | stdout JSONL |
-| Real AI readiness | deploy ready | TBD | real-ai | rollout + `/ready` (chờ AI image) |
-| Real EKS mutation | best effort | TBD | real-eks | kubectl + audit (chờ cluster `cdo-eks-cluster-dev`) |
-| PII/secret scrub | 100% sample logs | TBD | synthetic/preprocess | before/after sample (chờ `preprocess_telemetry.py`) |
+| Scenario count | >=10 | TBD | TBD | `run_report.json` |
+| Simulation window | >=4h | TBD | TBD | run start/end timestamps |
+| Auto-resolve rate | >=60% | TBD | TBD | computed from run report |
+| Unsafe action count | 0 | TBD | TBD | audit + K8s evidence |
+| Cross-tenant mutation | 0 | TBD | TBD | audit + RBAC/Kyverno |
+| Audit coverage | 100% | TBD | TBD | stdout/S3 audit |
+| Real AI readiness | deploy ready | TBD | Real AI | rollout + `/ready` |
+| Valid telemetry schema | 100% valid scenarios | TBD | mock/real | validation output |
+| PII/secret scrub | 100% sample logs | TBD | synthetic/preprocess | before/after sample |
 
 Quy tắc điền bảng:
 
@@ -362,8 +361,6 @@ Measured chỉ điền sau khi có command output hoặc evidence file.
 Mode phải ghi mock / real-ai / real-eks / full-real.
 Evidence phải có path cụ thể.
 ```
-
-> **Số mock-mode ở trên là kết quả chạy thật `python run_scenarios.py` (2026-06-29).** Đây là bằng chứng app-layer (executor loop + safety + audit) đã đạt target. Real-ai / real-eks evidence sẽ bổ sung sau khi deploy cluster `cdo-eks-cluster-dev` (region us-east-1) và AI team bàn giao image.
 
 ## 10. Test Execution Plan
 
@@ -491,14 +488,12 @@ QA rule: nếu team khác chỉ trả lời "ready rồi" nhưng không có comm
 
 | Gap | Owner | Impact | Mitigation |
 |---|---|---|---|
-| Real EKS mutation chưa validate | Infra | code patch sẵn nhưng chưa chạy trên cluster thật | deploy cluster `cdo-eks-cluster-dev` rồi chạy real EKS + real/mock AI |
-| Real AI integration chưa có | AI team | mọi số đo hiện ở mock mode | bàn giao AI image → deploy → chạy lại scenario ở real-ai mode |
-| Deferred GitOps là designed-only | Infra | SCALE_REPLICAS / ROTATE_SECRET không tính auto-resolve | giữ designed-only theo scope (paper playbook + diagram + ADR) |
-| Simulation 4h chưa chạy thật | QA | req #3 cần artifact 4h | chạy `run_scenarios.py --duration 4h`, lưu console + timestamps |
-| `run_report.json` chưa xuất ra file | QA | runner mới in console | thêm flag ghi JSON nếu reviewer cần file |
-| PII/secret scrub preprocessor chưa có | QA | chưa demo scrubbing | thêm `preprocess_telemetry.py` với sample before/after |
-
-> Các gap ở v2.0 cũ — *"only TC-01 exists"*, *"circuit breaker not implemented"*, *"K8s mutating methods still stub"* — **đã đóng**: repo có 14 scenario, `circuit_breaker.py` (test pass), và `k8s_client.py` patch thật.
+| K8s mutating methods still stub | Team A | cannot claim real restart/patch/rollback | run real AI + mock K8s until implemented |
+| Deferred GitOps still stub | Team A/B | TC-05/06 may not be real auto-resolve | mark designed-only unless implemented |
+| Only TC-01 scenario exists | Team C | cannot reach >=10 scenarios | create scenario JSONs |
+| Mock AI happy path only | Team C/A4 | bad cases need variants | use real AI variants or patch mock |
+| Observability docs stale | Team B | cannot claim Prometheus/OTel/CloudWatch runtime | request fresh output |
+| Circuit breaker not implemented | Team A | TC-15 not hard blocker | cut/designed-only |
 
 QA note: gap không phải lỗi nếu được ghi rõ và có fallback. Lỗi là claim pass khi chưa có evidence.
 
@@ -508,19 +503,17 @@ QA note: gap không phải lỗi nếu được ghi rõ và có fallback. Lỗi 
 
 | Summary metric | Target | Actual | Mode mix | Pass/Fail |
 |---|---:|---|---|---|
-| Total scenarios injected | >=10 | **14** | mock/offline | ✅ PASS |
-| Scenario window | >=4h | capability sẵn, chưa chạy đủ 4h | mock/offline | ⏳ chờ chạy 4h |
-| Auto-resolve rate | >=60% | **71.4% (10/14)** | mock/offline | ✅ PASS |
-| Match expected outcome | 100% | **14/14** | mock/offline | ✅ PASS |
-| Unsafe actions | 0 | **0** | mock/offline | ✅ PASS |
-| Cross-tenant leaks | 0 | **0** | mock/offline | ✅ PASS |
-| Complete audit coverage | 100% | **100%** | mock/offline | ✅ PASS |
-| Unit tests | pass | **13/13** | offline | ✅ PASS |
-| Real AI scenarios | >= core scenarios | chờ AI image | real-ai | ⏳ blocked |
-| Real EKS mutation scenarios | best effort | chờ cluster `cdo-eks-cluster-dev` | real-eks | ⏳ blocked |
-| Critical security findings | 0 | **0** (app-layer) | mock/offline | ✅ PASS |
+| Total scenarios injected | >=10 | TBD | TBD | TBD |
+| Scenario window | >=4h | TBD | TBD | TBD |
+| Auto-resolve rate | >=60% | TBD | TBD | TBD |
+| Unsafe actions | 0 | TBD | TBD | TBD |
+| Cross-tenant leaks | 0 | TBD | TBD | TBD |
+| Complete audit coverage | 100% | TBD | TBD | TBD |
+| Real AI scenarios | >= core scenarios | TBD | TBD | TBD |
+| Real EKS mutation scenarios | best effort | TBD | TBD | TBD |
+| Critical security findings | 0 | TBD | TBD | TBD |
 
-> **App-layer (mock/offline) đã PASS toàn bộ target chính** từ lần chạy thật `run_scenarios.py` + `pytest` ngày 2026-06-29. Hai dòng `real-ai` / `real-eks` còn chờ deploy cluster + AI image — không phải lỗi, đã ghi rõ ở §14 Known Gaps.
+Chỉ cập nhật bảng này sau khi đã có `run_report.json` và evidence paths.
 
 ## Related Documents
 

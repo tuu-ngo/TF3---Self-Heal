@@ -229,5 +229,5 @@ Nếu scale từ sandbox lên production thật với 2 tenant chạy liên tụ
 
 - [`02_infra_design.md`](02_infra_design.md) - Component list và architecture
 - [`04_deployment_design.md`](04_deployment_design.md) - IaC và deployment strategy
-- [`07_test_eval_report_v2.0.md`](07_test_eval_report_v2.0.md) - SLO evidence và test window
+- [`07_test_eval_report_v1.0_Duc.md`](07_test_eval_report_v1.0_Duc.md) - SLO evidence và test window
 - AI team `docs/template/03_ai_engine_spec.md` §8 - AI inference cost (Bedrock, thuộc AI budget)
