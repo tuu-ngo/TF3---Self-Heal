@@ -58,7 +58,11 @@ class AuditLogger:
         self.tenant_id = tenant_id
         self.cfg = cfg
         self._events: list[dict[str, Any]] = []
-        self._s3 = boto3.client("s3", region_name=cfg.aws_region) if (_HAS_BOTO and cfg.audit_bucket) else None
+        self._ts_ms: list[int] = []  # epoch-ms song song _events (cho CloudWatch Logs)
+        _aws = _HAS_BOTO and bool(cfg.audit_bucket)  # cờ "đang chạy AWS thật"
+        self._s3 = boto3.client("s3", region_name=cfg.aws_region) if _aws else None
+        # CloudWatch Logs = lớp query (Logs Insights). S3 Object Lock vẫn là source-of-truth tamper-evident.
+        self._logs = boto3.client("logs", region_name=cfg.aws_region) if _aws else None
 
     def event(self, event_type: str, *, namespace: str | None = None,
               action_type: str | None = None, decision: str | None = None,
@@ -79,19 +83,50 @@ class AuditLogger:
         }
         rec = {k: v for k, v in rec.items() if v is not None}
         self._events.append(rec)
-        print(json.dumps(rec, ensure_ascii=False))  # stdout → CloudWatch
+        self._ts_ms.append(int(time.time() * 1000))
+        print(json.dumps(rec, ensure_ascii=False))  # stdout (kubectl logs)
 
     def flush(self) -> None:
-        """Ghi toàn bộ chuỗi event của incident thành 1 object bất biến vào S3."""
+        """Kết thúc incident: (1) S3 Object Lock (tamper-evident, source-of-truth),
+        (2) CloudWatch Logs (lớp query Logs Insights)."""
+        self._to_s3()
+        self._to_cloudwatch()
+
+    def _to_s3(self) -> None:
+        """1 object bất biến/incident vào S3 Object Lock."""
         if self._s3 is None:
             return
         key = f"audit/{self.tenant_id}/{self.correlation_id}.json"
         body = json.dumps({"correlation_id": self.correlation_id, "events": self._events},
                           ensure_ascii=False).encode("utf-8")
-        # Object Lock Governance + retention 90d đã set ở bucket-level (audit/main.tf),
-        # nên PutObject thường là đủ; có thể set per-object retention nếu cần.
+        # Object Lock Governance + retention 90d đã set ở bucket-level (audit/main.tf).
         self._s3.put_object(Bucket=self.cfg.audit_bucket, Key=key, Body=body,
                             ContentType="application/json")
+
+    def _to_cloudwatch(self) -> None:
+        """Đẩy từng event vào CloudWatch Logs (group /cdo/<env>/audit, stream = correlation_id)
+        để query bằng Logs Insights theo correlation_id / tenant_id / action_type / event.
+        Mỗi correlation_id là 1 stream riêng → không đụng sequence token."""
+        if self._logs is None or not self._events:
+            return
+        group = self.cfg.audit_log_group
+        stream = self.correlation_id
+        try:
+            self._logs.create_log_stream(logGroupName=group, logStreamName=stream)
+        except Exception:
+            # stream đã tồn tại HOẶC group chưa có → thử tạo group rồi stream; lỗi khác bỏ qua
+            try:
+                self._logs.create_log_group(logGroupName=group)
+                self._logs.create_log_stream(logGroupName=group, logStreamName=stream)
+            except Exception:
+                pass
+        log_events = [{"timestamp": ts, "message": json.dumps(ev, ensure_ascii=False)}
+                      for ev, ts in zip(self._events, self._ts_ms)]
+        try:
+            self._logs.put_log_events(logGroupName=group, logStreamName=stream,
+                                      logEvents=log_events)
+        except Exception as e:  # noqa: BLE001 — audit query layer không được làm crash loop
+            print(json.dumps({"event": "cloudwatch_audit_error", "detail": str(e)[:200]}))
 
 
 def _now_rfc3339() -> str:

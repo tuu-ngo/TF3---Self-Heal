@@ -78,6 +78,8 @@ class Config:
     idempotency_table: str = _env("CDO_IDEMPOTENCY_TABLE", "cdo-idempotency-dev")
     idempotency_ttl_seconds: int = _env_int("CDO_IDEMPOTENCY_TTL_S", 86400)  # 24h
     audit_bucket: str = _env("CDO_AUDIT_BUCKET", "")  # rỗng → audit chỉ ra stdout (dev)
+    # CloudWatch Logs = lớp QUERY audit (Logs Insights). S3 Object Lock vẫn là source-of-truth tamper-evident.
+    audit_log_group: str = _env("CDO_AUDIT_LOG_GROUP", "/cdo/dev/audit")
     # SQS telemetry buffer (telemetry-contract §2.5.C). Rỗng → executor dùng watcher poll K8s (fallback).
     telemetry_queue_url: str = _env("CDO_TELEMETRY_QUEUE_URL", "")
     sqs_wait_time_s: int = _env_int("CDO_SQS_WAIT_S", 20)       # long-poll

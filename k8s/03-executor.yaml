@@ -5,6 +5,10 @@ metadata:
   namespace: self-heal-system
 spec:
   replicas: 1
+  # Recreate: kill pod cũ trước rồi tạo mới — chỉ 1 executor chạy 1 lúc (controller),
+  # và tránh cần +1 pod-slot khi rollout (t3.medium giới hạn ~17 pod/node).
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: cdo-self-heal-controller
@@ -16,7 +20,7 @@ spec:
       serviceAccountName: tf3-cdo-controller
       containers:
         - name: executor
-          image: 012619468490.dkr.ecr.us-east-1.amazonaws.com/cdo-executor:v4
+          image: 012619468490.dkr.ecr.us-east-1.amazonaws.com/cdo-executor:v5
           command: ["python", "main.py", "--watch"]
           env:
             - name: PYTHONUNBUFFERED
@@ -29,6 +33,8 @@ spec:
               value: "us-east-1"
             - name: CDO_AUDIT_BUCKET
               value: cdo-audit-012619468490-dev
+            - name: CDO_AUDIT_LOG_GROUP
+              value: /cdo/dev/audit
             - name: CDO_IDEMPOTENCY_TABLE
               value: "cdo-idempotency-dev"
             - name: CDO_TENANT_NAMESPACES
