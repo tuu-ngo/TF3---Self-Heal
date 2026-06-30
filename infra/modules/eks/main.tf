@@ -28,7 +28,7 @@ module "eks" {
     default_node_group = {
       min_size     = 2
       max_size     = 5
-      desired_size = 2
+      desired_size = 3 # 2→3: fix "too many pods" (t3.medium max 17 pod/node) + chỗ cho AI engine
 
       instance_types = ["t3.medium"]
       capacity_type  = "ON_DEMAND"
