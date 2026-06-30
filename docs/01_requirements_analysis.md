@@ -324,7 +324,7 @@ Tất cả các điểm dưới đây đã được xác nhận trong 3 contract
 - ✅ **CDO self-capture rollback snapshot (contract-new-4)**: AI KHÔNG trả `rollback_snapshot`. CDO phải capture TRƯỚC khi execute — urgent path: đọc K8s API lấy current state (`memory_limit`, `replica_count`, `image_tag`) → lưu audit log; deferred path: ghi Git commit SHA hiện tại → lưu audit log. Dùng để restore khi `/v1/verify` trả `next_action=ROLLBACK`.
 - ✅ **Idempotency lock scope (contract-new-4 §3.D)**: DynamoDB lock CHỈ áp dụng cho `/v1/decide`. `/v1/detect` và `/v1/verify` dùng Idempotency-Key cho audit trail, không lock.
 - ✅ **403 Forbidden (contract-new-4)**: Trả về khi `X-Tenant-Id` header không khớp `tenant_id` trong payload — CDO xử lý bằng audit + retry sau khi kiểm tra header.
-- ✅ **CDO controller SA namespace (deployment contract-new-4 §3.D) — RESOLVED**: Contract yêu cầu `tf3-cdo-controller` ServiceAccount nằm trong namespace `self-heal-system`. Đã chốt theo contract: executor SA `tf3-cdo-controller` đặt trong `self-heal-system`, khớp IRSA trust policy (`infra/modules/iam/main.tf`) và manifests (`k8s/01-rbac.yaml`, `k8s/03-executor.yaml`, `manifests/executor/deployment.yaml`). RoleBinding sang `tenant-a`/`tenant-b` để executor patch workload theo namespace. `platform` không còn host executor.
+- ✅ **CDO controller SA namespace (deployment contract-new-4 §3.D)**: Contract yêu cầu `tf3-cdo-controller` ServiceAccount nằm trong namespace `self-heal-system`. CDO hiện thiết kế executor trong `platform` — cần resolution W12 trước khi apply manifest.
 
 ## 10. Giả Định
 

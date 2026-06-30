@@ -501,30 +501,35 @@ Terraform/manifests skeleton dự kiến:
 
 ```text
 infra/
-  bootstrap/               # S3 state bucket (chạy 1 lần, giữ local state có chủ đích)
   envs/
-    dev/                   # wiring sandbox + backend S3 remote state
+    dev/
   modules/
-    vpc/                   # VPC, subnets, NAT, S3/DynamoDB gateway endpoints
-    eks/                   # EKS cluster + managed node group (terraform-aws-modules/eks)
-    iam/                   # IRSA executor + AI Engine, least-privilege policies
-    observability/         # CloudWatch log groups + alarms (executor errors, Kyverno deny, DLQ rate)
-    audit/                 # S3 Object Lock (Governance) + DynamoDB idempotency + SQS + DLQ
-    ecr/                   # ECR repo cho image executor
-    secrets/              # Secrets Manager shell cho Bedrock credentials (AI team set value)
-    kyverno/               # Kyverno Helm release (phase 2 — admission control layer 3)
-    argocd/                # ArgoCD Helm release (phase 2 — GitOps engine)
+    vpc/
+    eks/
+    iam/                   # IRSA, deploy role, least-privilege policies
+    observability/
+    audit/                 # S3 Object Lock bucket, retention policy
+    idempotency/           # DynamoDB table idempotency lock
+    tenant-bootstrap/      # namespace, RBAC, labels per tenant
 manifests/
-  namespaces/              # self-heal-system, platform, tenant-a, tenant-b, argocd, kyverno
-  argocd/                  # appproject + application per tenant
-  workloads/               # tenant-a / tenant-b sample podinfo
-  executor/                # CDO executor Deployment (namespace self-heal-system)
-  rbac/                    # SA tf3-cdo-controller + RoleBinding sang tenant-a/tenant-b
-  kyverno/policies/        # restrict-replicas, restrict-memory-limit, restrict-executor-namespace
-  networkpolicies/         # allow-executor-to-ai
+  namespaces/
+    tenant-a.yaml
+    tenant-b.yaml
+    platform.yaml
+  argocd/
+    appproject-tenant-a.yaml
+    appproject-tenant-b.yaml
+    application-tenant-a.yaml
+    application-tenant-b.yaml
+  workloads/
+    tenant-a-sample-app.yaml
+    tenant-b-sample-app.yaml
+  kyverno/
+    policies/
+      restrict-replicas.yaml          # Policy 1: replicas <= 10
+      restrict-memory-limit.yaml      # Policy 2: memory limit <= 4Gi
+      restrict-executor-namespace.yaml # Policy 3: namespace allowlist
 ```
-
-> Ghi chú: idempotency (DynamoDB) và telemetry buffer (SQS) nằm trong module `audit/` — không có module `idempotency/` hay `tenant-bootstrap/` riêng. Namespace/RBAC/workload quản lý qua manifests (kubectl/ArgoCD), không qua Terraform module.
 
 Mục tiêu T6 W11 là có skeleton/base IaC rõ ràng và commit evidence. Mức chạy thật của VPC/EKS/observability cần xác nhận với trainer nếu AWS account hoặc quota chưa sẵn sàng.
 

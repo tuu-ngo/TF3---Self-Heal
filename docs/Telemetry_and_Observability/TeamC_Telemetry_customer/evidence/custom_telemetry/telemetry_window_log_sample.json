@@ -1,0 +1,17 @@
+[
+  {
+    "ts": "2026-06-29T15:00:00.000Z",
+    "tenant_id": "6c8b4b2b-4d45-4209-a1b4-4b532d56a31c",
+    "service": "checkout-svc",
+    "signal_name": "application_log_event",
+    "value": "checkout failed credential placeholder_token secret placeholder_password user user-at-example.test",
+    "labels": {
+      "namespace": "tenant-a",
+      "deployment": "cdo-sample-api",
+      "level": "ERROR",
+      "system": "E-COMMERCE",
+      "cdo_source_mode": "real_log_event",
+      "cdo_original_signal": "application_log_event"
+    }
+  }
+]

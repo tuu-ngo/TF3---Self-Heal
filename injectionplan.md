@@ -29,7 +29,7 @@
 | Workload tenant-a | `deployment/cdo-sample-api` (podinfo) · service `checkout-svc` · ns `tenant-a` · mem limit 128Mi · replicas 1 |
 | Workload tenant-b | `deployment/notification-service` (podinfo) · ns `tenant-b` · mem limit 128Mi · replicas 2 |
 | AI endpoint | `http://ai-engine.self-heal-system.svc.cluster.local:8080` (`/v1/detect`, `/v1/decide`, `/v1/verify`) | (to be update)
-| System label | `"system": "K8S_NATIVE"` — giá trị CDO watcher gửi thực tế (bắt buộc trong `labels`) |
+| System label | `"system": "E-COMMERCE"` (bắt buộc trong `labels`) |
 
 **podinfo hỗ trợ inject thật** (CDO dùng để tạo lỗi live): `POST /readyz/disable`·`/readyz/enable` (toggle readiness), `GET /status/{code}` (sinh 5xx), `GET /delay/{s}` (tăng latency), `GET /panic` (crash), metrics Prometheus ở `:9797`.
 
@@ -51,7 +51,7 @@ Mỗi phần tử `telemetry_window[]`:
   "service": "checkout-svc",                  // BẮT BUỘC
   "signal_name": "service_latency_p95",       // BẮT BUỘC, thuộc 12 enum
   "value": 1850.0,                            // number hoặc string (log)
-  "labels": { "system": "K8S_NATIVE", "namespace": "tenant-a", "deployment": "cdo-sample-api" }
+  "labels": { "system": "E-COMMERCE", "namespace": "tenant-a", "deployment": "cdo-sample-api" }
 }
 ```
 12 `signal_name` hợp lệ: `service_error_rate`, `service_latency_p95`, `service_throughput_rps`, `application_log_event`, `distributed_trace_error_event`, `container_resource_usage`, `pod_oom_event`, `container_restart_count`, `service_unhealthy`, `queue_backlog`, `db_connection_pool_saturation`, `secret_expiry_warning`.
@@ -96,7 +96,7 @@ Mỗi phần tử `telemetry_window[]`:
 - **How injected (SYNTHETIC):** POST telemetry (không cần queue thật):
   ```json
   { "signal_name": "queue_backlog", "value": 15000, "service": "notification-service",
-    "labels": { "system": "K8S_NATIVE", "namespace": "tenant-b", "deployment": "notification-service" } }
+    "labels": { "system": "E-COMMERCE", "namespace": "tenant-b", "deployment": "notification-service" } }
   ```
 - **Expected AI:** decide `pattern_type="deferred"`, action `SCALE_REPLICAS` (vd `replicas=5`, ≤10).
 - **Expected outcome:** CDO **không** mutate K8s trực tiếp → tạo Git commit → ArgoCD sync → replicas tăng → verify `queue_backlog` giảm → **auto_resolved via GitOps**.
@@ -104,7 +104,7 @@ Mỗi phần tử `telemetry_window[]`:
 - **Cleanup:** revert commit (replicas về 2) → ArgoCD sync; hoặc post_telemetry `queue_backlog` giảm dần.
 
 ### S-06 · Secret / cert expiry (TC-06, tenant-a) — *deferred (SYNTHETIC)*
-- **How injected (SYNTHETIC):** POST `{ "signal_name": "secret_expiry_warning", "value": 7, "service": "checkout-svc", "labels": { "system":"K8S_NATIVE", "namespace":"tenant-a", "secret_name":"tf-3/checkout-svc/cert" } }`.
+- **How injected (SYNTHETIC):** POST `{ "signal_name": "secret_expiry_warning", "value": 7, "service": "checkout-svc", "labels": { "system":"E-COMMERCE", "namespace":"tenant-a", "secret_name":"tf-3/checkout-svc/cert" } }`.
 - **Expected AI:** decide `pattern_type="deferred"`, action `ROTATE_SECRET` (`secret_name` trong allow-list).
 - **Expected outcome:** CDO rotate qua GitOps path (safety gate: secret_name ∈ allow-list + verify_policy bắt buộc) → **auto_resolved**.
 - **Pass/Fail:** PASS nếu rotate đúng secret trong allow-list; deny nếu secret ngoài allow-list.
@@ -164,7 +164,7 @@ Mỗi phần tử `telemetry_window[]`:
 - **Deterministic:** mỗi scenario có payload/cmd cố định + `correlation_id` ổn định (`s-XX-<uuid>`) → AI replay được, kết quả lặp lại.
 - **Idempotent:** `Idempotency-Key` UUID v4/scenario → không double-trigger.
 - **Synthetic cho signal khó:** `queue_backlog`/`secret_expiry`/`db_pool` luôn dùng payload cứng → không phụ thuộc hạ tầng dễ vỡ.
-- **Tenant + labels chuẩn:** luôn `tenant_id=6c8b4b2b…`, `labels.system=K8S_NATIVE` (CDO watcher gửi thực tế), ns/deployment đúng workload.
+- **Tenant + labels chuẩn:** luôn `tenant_id=6c8b4b2b…`, `labels.system=E-COMMERCE`, ns/deployment đúng workload.
 
 ---
 

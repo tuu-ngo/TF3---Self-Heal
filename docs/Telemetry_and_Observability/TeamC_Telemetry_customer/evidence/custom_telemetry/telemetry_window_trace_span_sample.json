@@ -1,0 +1,17 @@
+[
+  {
+    "ts": "2026-06-30T06:00:20.043Z",
+    "tenant_id": "6c8b4b2b-4d45-4209-a1b4-4b532d56a31c",
+    "service": "checkout-svc",
+    "signal_name": "distributed_trace_error_event",
+    "value": "upstream 503",
+    "labels": {
+      "trace_id": "abc",
+      "span_id": "def",
+      "operation": "GET /checkout",
+      "system": "E-COMMERCE",
+      "cdo_source_mode": "real_otel_span",
+      "cdo_original_signal": "distributed_trace_error_event"
+    }
+  }
+]

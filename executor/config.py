@@ -51,8 +51,8 @@ class Config:
     dry_run_mode: bool = _env("CDO_DRY_RUN", "false").lower() == "true"
 
     # --- Namespace / executor identity ---
-    # Contract §3.D: SA `tf3-cdo-controller` ở `self-heal-system` — đã chốt theo contract
-    #   (xem ADR-003 update 2026-06-29 + 03_security_design §5). Khớp IRSA trust + manifests.
+    # ⚠ Contract §3.D yêu cầu SA `tf3-cdo-controller` ở `self-heal-system`.
+    #   Thiết kế hiện đặt executor ở `platform` — chốt trước W12 T1 (xem 03_security_design §5).
     executor_namespace: str = _env("CDO_EXECUTOR_NS", "self-heal-system")
     # Mock K8s (Day-1 offline test không cần cluster thật, kể cả khi `kubernetes` lib đã cài)
     k8s_mock: bool = _env("CDO_K8S_MOCK", "false").lower() == "true"

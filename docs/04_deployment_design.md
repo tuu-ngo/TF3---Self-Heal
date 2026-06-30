@@ -24,9 +24,9 @@ State backend dự kiến:
 
 Ghi chú trạng thái hiện tại của repo:
 
-- S3 backend đã được cấu hình trong `infra/envs/dev/providers.tf` (`backend "s3"` + `use_lockfile = true`).
-- Bucket state tạo bằng `infra/bootstrap/` (chạy 1 lần). Chi tiết quy trình init/migrate xem `infra/BUILD_GUIDE_T6.md`.
-- Không còn dùng state local `terraform.tfstate`.
+- Đây là hướng thiết kế mục tiêu.
+- Tại thời điểm cập nhật tài liệu này, mã Terraform trong `infra/envs/dev` chưa cấu hình backend S3.
+- Repo vẫn đang có file state local `terraform.tfstate`, nên chưa thể nói phần remote state đã được triển khai xong.
 
 CDO-02 không chọn CloudFormation hay CDK làm hướng chính trong capstone vì mục tiêu hiện tại là có một cấu trúc triển khai để review, để chia module, để plan/apply theo environment và để giảm coupling với code runtime.
 
@@ -67,35 +67,29 @@ Trong scope capstone, **sandbox** là môi trường duy nhất cần implement.
 
 ### 1.3 Quản lý state
 
-**Trạng thái hiện tại: S3 remote state — đã triển khai (W12).**
+**Trạng thái hiện tại: Local state — known gap, chấp nhận cho capstone scope.**
 
-Terraform state đã chuyển từ local sang **S3 backend** với lockfile native (`infra/envs/dev/providers.tf`):
+Terraform state hiện đang lưu local tại `infra/envs/dev/terraform.tfstate`. Đây là known gap được chấp nhận có chủ đích vì:
 
-```hcl
-backend "s3" {
-  bucket       = "cdo-tf-state-<account-id>-<env>"
-  key          = "envs/dev/terraform.tfstate"
-  region       = "<region>"
-  use_lockfile = true   # Terraform >= 1.10 — S3 conditional write lock, không cần DynamoDB
-  encrypt      = true
-}
-```
+- Capstone chỉ có 1 người chạy `terraform apply` tại một thời điểm → không có race condition thực tế.
+- Setup S3 backend cần tạo bucket trước khi có infra → bootstrap chicken-and-egg problem trong giai đoạn W11.
+- Ưu tiên W11 là có skeleton/evidence commit, không phải hoàn thiện pipeline.
 
-Bucket state được tạo bằng `infra/bootstrap/` (chạy 1 lần): versioning ON, AES256 encryption, public access blocked, bucket policy giới hạn theo account. Giải quyết bootstrap chicken-and-egg bằng cách tách `bootstrap/` (giữ local state có chủ đích) khỏi `envs/dev/`.
+**Quy tắc bắt buộc khi dùng local state:**
 
-**Quy tắc vận hành:**
-
-- `use_lockfile = true` (S3 conditional write, TF ≥ 1.10) chặn 2 apply chạy đồng thời — không cần DynamoDB lock table.
-- Chỉ một người chạy `terraform apply` tại một thời điểm (WORK_RULE §IV) — lockfile enforce.
+- Chỉ một người chạy `terraform apply` tại một thời điểm — thông báo team trước khi chạy.
+- Commit `terraform.tfstate` lên Git sau mỗi lần apply thành công để team có state mới nhất.
+- Không commit `terraform.tfstate.backup`.
 - `terraform plan` bắt buộc review trước khi apply.
-- Không commit `terraform.tfstate` local nữa (state nằm trên S3).
 
 **Known risk:**
 
 | Risk | Mức độ | Mitigate |
 |---|---|---|
-| State chứa output values (ARN, endpoint) | Thấp | State trên S3 private + encrypted; sensitive secret không ghi vào state |
-| Quên `terraform init` sau khi đổi backend | Thấp | BUILD_GUIDE_T6 §0b hướng dẫn init lại |
+| Hai người apply cùng lúc → state conflict | Thấp (1 người apply) | Thông báo team qua standup/Slack |
+| State file chứa output values (ARN, endpoint) → lộ trong Git | Trung bình | Không commit secret thật vào state; dùng placeholder cho sensitive outputs |
+
+**Target W12 nếu kịp:** Migrate lên S3 backend (`backend "s3"` + S3 lockfile). Không block W11 delivery.
 
 ## 2. CI/CD pipeline
 
@@ -259,9 +253,9 @@ Bảng `selfHeal` theo namespace:
 | Namespace | `selfHeal` | Lý do |
 |---|---|---|
 | `tenant-a`, `tenant-b` | `false` | CDO urgent path cần mutate cluster mà không bị revert |
-| `self-heal-system` | `true` | AI Engine pod + CDO executor — chỉ update qua deploy pipeline |
+| `platform` | `false` | CDO executor chạy ở đây, cũng chịu urgent action |
 | `argocd` | `true` | Infrastructure — chỉ update qua pipeline, không ai sửa tay |
-| `platform` | `true` | Namespace dùng chung (tiện ích) — chỉ update qua pipeline |
+| `self-heal-system` | `true` | AI Engine pod — chỉ update qua deploy pipeline |
 
 `prune: false` đảm bảo ArgoCD không tự xóa resource khi manifest bị remove — cần approval thủ công cho destructive action.
 
@@ -367,7 +361,7 @@ CDO executor chỉ được write vào `manifests/<tenant>/` của chính tenant
 | AppProject + Application | ArgoCD | Scoped per tenant |
 | Namespace + RBAC | ArgoCD (wave 0–1) | `platform`, `tenant-a`, `tenant-b`, `self-heal-system` |
 | Observability stack | ArgoCD (wave 2) | Prometheus, Alertmanager, Grafana |
-| CDO executor / collector | ArgoCD (wave 3) | namespace `self-heal-system` (executor + SA `tf3-cdo-controller`) |
+| CDO executor / collector | ArgoCD (wave 3) | namespace `platform` |
 | AI Engine deployment | ArgoCD (wave 3) | namespace `self-heal-system` — CDO deploy từ OCI image AI team bàn giao (W12) |
 | Sample workloads | ArgoCD (wave 4) | `tenant-a`, `tenant-b` |
 | Runtime deferred action | CDO executor → Git commit → ArgoCD | Per-incident manifest patch |
@@ -467,7 +461,7 @@ Trong scope hiện tại, CDO-02 chỉ thiết kế và triển khai **1 environ
 
 Trong sandbox, separation được thể hiện bằng:
 
-- Namespace `self-heal-system` cho CDO executor (SA `tf3-cdo-controller`) và AI Engine; `platform` cho collector/thành phần dùng chung
+- Namespace `platform` cho executor, collector và thành phần dùng chung
 - Namespace `tenant-a` cho workload tenant 1
 - Namespace `tenant-b` cho workload tenant 2
 
@@ -640,7 +634,7 @@ AI Engine pod phải có label `app: ai-engine` — bắt buộc để NetworkPo
 
 **Egress NetworkPolicy (contract-new-4 §4.C):** AI Engine chỉ được egress HTTPS:443 ra AWS VPC Endpoints. Egress đến K8s API Server bị block.
 
-### 8.6 CDO Controller ServiceAccount — RESOLVED
+### 8.6 CDO Controller ServiceAccount — Conflict cần giải quyết
 
 **Contract-new-4 §3.D** yêu cầu CDO controller ServiceAccount tên `tf3-cdo-controller` phải nằm trong namespace `self-heal-system`:
 
@@ -649,12 +643,14 @@ serviceAccountName: tf3-cdo-controller
 namespace: self-heal-system
 ```
 
-**Quyết định (chốt theo contract):** executor đặt trong `self-heal-system`, không còn ở `platform`. Đã đồng bộ toàn bộ:
+CDO hiện thiết kế executor trong namespace `platform`. Đây là conflict cần giải quyết trước khi apply manifest W12:
 
-- IRSA trust policy bind `system:serviceaccount:self-heal-system:tf3-cdo-controller` (`infra/modules/iam/main.tf`).
-- RBAC: SA trong `self-heal-system`, RoleBinding sang `tenant-a`/`tenant-b` để patch workload (`k8s/01-rbac.yaml`, `manifests/rbac/executor-rbac.yaml`).
-- Executor Deployment trong `self-heal-system` (`k8s/03-executor.yaml`, `manifests/executor/deployment.yaml`).
-- Sync wave 3 (Section 3.8) deploy executor vào `self-heal-system` cùng AI Engine.
+| Option | Impact |
+|---|---|
+| Di chuyển executor sang `self-heal-system` | IRSA trust policy phải cập nhật; RBAC binding thay đổi namespace; sync wave 3 cần update |
+| Push-back với AI team giữ `platform` | Cần agreement bằng văn bản trong contract revision |
+
+CDO phải confirm quyết định này với AI team **trước W12 T1** để không block manifest apply.
 
 ## 9. Câu Hỏi Mở
 

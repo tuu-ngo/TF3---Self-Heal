@@ -1,8 +1,8 @@
 {
-  "scenario": "oom_kill_b",
-  "description": "OOMKilled tenant-b → PATCH_MEMORY_LIMIT → heal",
+  "scenario": "latency_b",
+  "description": "Latency tenant-b → RESTART → heal",
   "tenant_namespace": "tenant-b",
-  "correlation_id": "sc06-0000-0000-0000-000000000000",
+  "correlation_id": "sc08-0000-0000-0000-000000000000",
   "expected_outcome": "auto_resolved",
   "expected_resolved": true,
   "telemetry_window": [
@@ -10,13 +10,13 @@
       "ts": "2026-06-29T10:00:00.000Z",
       "tenant_id": "6c8b4b2b-4d45-4209-a1b4-4b532d56a31c",
       "service": "orders-svc",
-      "signal_name": "pod_waiting_reason",
-      "value": "OOMKilled",
+      "signal_name": "service_latency_p95",
+      "value": 2200.0,
       "labels": {
         "system": "K8S_NATIVE",
         "namespace": "tenant-b",
         "deployment": "cdo-orders-api",
-        "scenario": "oom_kill_b"
+        "scenario": "latency_b"
       }
     }
   ]

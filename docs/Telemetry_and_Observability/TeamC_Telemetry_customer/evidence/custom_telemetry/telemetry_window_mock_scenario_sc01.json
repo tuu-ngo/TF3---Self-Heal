@@ -1,0 +1,17 @@
+[
+  {
+    "ts": "2026-06-29T10:00:00.000Z",
+    "tenant_id": "6c8b4b2b-4d45-4209-a1b4-4b532d56a31c",
+    "service": "checkout-svc",
+    "signal_name": "pod_oom_event",
+    "value": "OOMKilled",
+    "labels": {
+      "system": "K8S_NATIVE",
+      "namespace": "tenant-a",
+      "deployment": "cdo-sample-api",
+      "scenario": "oom_kill",
+      "cdo_source_mode": "mock_scenario",
+      "cdo_original_signal": "pod_waiting_reason"
+    }
+  }
+]

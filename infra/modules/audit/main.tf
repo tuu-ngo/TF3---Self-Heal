@@ -1,11 +1,6 @@
 # -------------------------------------------------------------------
 # S3 Audit Bucket — Object Lock GOVERNANCE Mode, 90-day retention
-# Admin có thể unlock với s3:BypassGovernanceRetention khi cần.
-#
-# ⚠ DEVIATION: Deployment Contract §4.B yêu cầu COMPLIANCE mode. CDO-02 chọn
-#   GOVERNANCE cho sandbox capstone (teardown sạch + tránh khóa cứng 90 ngày).
-#   Lý do + đường nâng cấp production xem docs/08_adrs.md → ADR-010.
-#   Production: đổi mode = "COMPLIANCE" (1 dòng bên dưới) + bỏ quyền bypass.
+# Admin có thể unlock với s3:BypassGovernanceRetention khi cần
 # -------------------------------------------------------------------
 
 resource "aws_s3_bucket" "audit" {

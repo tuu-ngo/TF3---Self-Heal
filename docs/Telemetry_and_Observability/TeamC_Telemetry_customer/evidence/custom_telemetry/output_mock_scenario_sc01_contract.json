@@ -1,22 +1,24 @@
 {
-  "scenario": "oom_persist",
-  "description": "OOM tái diễn sau patch → verify ROLLBACK",
+  "scenario": "oom_kill",
+  "description": "OOMKilled → PATCH_MEMORY_LIMIT → heal",
   "tenant_namespace": "tenant-a",
-  "correlation_id": "sc09-0000-0000-0000-000000000000",
-  "expected_outcome": "rolled_back",
+  "correlation_id": "sc01-0000-0000-0000-000000000000",
+  "expected_outcome": "auto_resolved",
   "expected_resolved": true,
   "telemetry_window": [
     {
       "ts": "2026-06-29T10:00:00.000Z",
       "tenant_id": "6c8b4b2b-4d45-4209-a1b4-4b532d56a31c",
       "service": "checkout-svc",
-      "signal_name": "pod_waiting_reason",
+      "signal_name": "pod_oom_event",
       "value": "OOMKilled",
       "labels": {
         "system": "K8S_NATIVE",
         "namespace": "tenant-a",
         "deployment": "cdo-sample-api",
-        "scenario": "oom_persist"
+        "scenario": "oom_kill",
+        "cdo_source_mode": "mock_scenario",
+        "cdo_original_signal": "pod_waiting_reason"
       }
     }
   ]
