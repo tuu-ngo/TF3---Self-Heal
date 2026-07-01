@@ -15,7 +15,13 @@ Env (tùy chỉnh):
     WINDOW_S   (default 21600 = 6h)   STEP_S (default 30 = scrape interval)
 """
 from __future__ import annotations
-import os, sys, json, time, urllib.parse, urllib.request
+
+import json
+import os
+import sys
+import time
+import urllib.parse
+import urllib.request
 
 PROM = os.getenv("PROM_URL", "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090")
 WINDOW_S = int(os.getenv("WINDOW_S", "21600"))
@@ -54,7 +60,8 @@ def query_range(expr: str, start: int, end: int, step: int) -> dict[int, float]:
 
 
 def main() -> None:
-    end = int(time.time()); start = end - WINDOW_S
+    end = int(time.time())
+    start = end - WINDOW_S
     cols: list[str] = []
     data: dict[str, dict[int, float]] = {}
     for svc, ns in SERVICES:
@@ -62,7 +69,8 @@ def main() -> None:
             col = f"{svc}_{mtype}"
             series = query_range(tmpl.format(ns=ns, svc=svc), start, end, STEP_S)
             if series:
-                cols.append(col); data[col] = series
+                cols.append(col)
+                data[col] = series
     # trục thời gian chung
     times = sorted({t for s in data.values() for t in s})
     w = sys.stdout
