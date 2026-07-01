@@ -1,0 +1,3 @@
+timestamp,service,level,message
+1782894772313870080,cdo-sample-api,INFO,Starting podinfo
+1782894772314608128,cdo-sample-api,INFO,Starting HTTP Server.
