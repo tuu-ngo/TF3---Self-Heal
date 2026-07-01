@@ -24,5 +24,7 @@ paths = [
   '''evidence/.*''',
   '''CDO-01/.*''',           # reference đội bạn
   '''(^|/)AI/.*''',          # reference team AI
+  '''AI Engine.*''',         # source engine team AI (AI Engine V3/) — code đội khác; .env.example key rỗng
+  '''AI ENGINE.*''',         # bản AI engine cũ nếu còn
   '''capstone-phase2/.*''',  # template/reference gốc
 ]
