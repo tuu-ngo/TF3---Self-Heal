@@ -22,19 +22,48 @@ _PATTERNS: list[tuple[re.Pattern, str]] = [
 ]
 
 
+# Key-name based scrub — bắt secret NGAY CẢ khi value không khớp regex nào
+# (vd token định dạng lạ, password không có prefix). Nếu tên key nhạy cảm →
+# redact toàn bộ value. Bổ sung lớp phòng thủ ngoài 7 regex ở trên.
+_REDACTED = "<REDACTED>"
+_SENSITIVE_KEYS: frozenset[str] = frozenset({
+    "password", "passwd", "pwd", "secret", "secret_key", "secretkey",
+    "api_key", "apikey", "token", "auth_token", "access_token",
+    "refresh_token", "authorization", "credential", "credentials",
+    "aws_secret_access_key", "aws_access_key_id", "private_key", "ssh_key",
+})
+
+
+def _is_sensitive_key(key: str) -> bool:
+    kn = key.lower().replace("-", "_")
+    return any(sk in kn for sk in _SENSITIVE_KEYS)
+
+
 def scrub_text(text: str) -> str:
     for pat, repl in _PATTERNS:
         text = pat.sub(repl, text)
     return text
 
 
+def scrub_value(key: str, value: Any) -> Any:
+    """Redact theo TÊN KEY nhạy cảm (bất kể format); còn lại scrub regex nếu string."""
+    if _is_sensitive_key(key):
+        return _REDACTED
+    if isinstance(value, str):
+        return scrub_text(value)
+    if isinstance(value, dict):
+        return {k: scrub_value(k, v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [scrub_value(key, v) for v in value]
+    return value
+
+
 def scrub_signal(signal: dict[str, Any]) -> dict[str, Any]:
-    """Scrub value (nếu string) + label string. Trả signal mới (không mutate gốc)."""
+    """Scrub value (regex nếu string) + label (regex + key-name). Không mutate gốc."""
     s = dict(signal)
     if isinstance(s.get("value"), str):
         s["value"] = scrub_text(s["value"])
     labels = s.get("labels")
     if isinstance(labels, dict):
-        s["labels"] = {k: (scrub_text(v) if isinstance(v, str) else v)
-                       for k, v in labels.items()}
+        s["labels"] = {k: scrub_value(k, v) for k, v in labels.items()}
     return s

@@ -1,0 +1,126 @@
+# ============================================================
+# restrict-executor-mutations.yaml (Kyverno ClusterPolicy)
+# Field-level allowlist cho self-heal executor — belt-and-suspenders.
+#
+# CHIẾN LƯỢC: Self-heal executor (SA tf3-cdo-controller) CHỈ được sửa
+#   spec.replicas và resources (limits/requests) trên Deployment/StatefulSet
+#   trong namespace tenant. Admission layer chặn tuyệt đối (dù RBAC + app
+#   safety-gate có bị bypass):
+#     Rule 1: cấm set field leo thang đặc quyền (privileged / hostNetwork /
+#             hostPID / hostIPC) khi request đến từ executor SA.
+#     Rule 2: cấm mount hostPath volume khi request đến từ executor SA.
+#     Rule 3: cấm executor ĐỔI container image (chỉ được replicas + resources).
+#   Chỉ áp cho executor SA (precondition userInfo) → KHÔNG cản ArgoCD /
+#   deploy image bình thường qua GitOps (SA khác).
+#
+# Test (kubectl --as=system:serviceaccount:self-heal-system:tf3-cdo-controller):
+#   1. patch resources.limits.memory      -> PASS
+#   2. patch spec.replicas (<=10)          -> PASS
+#   3. patch container image               -> REJECT (Rule 3)
+#   4. set securityContext.privileged=true -> REJECT (Rule 1)
+#   5. add hostPath volume                 -> REJECT (Rule 2)
+# ============================================================
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: restrict-executor-mutations
+  annotations:
+    policies.kyverno.io/title: Restrict Self-Heal Executor Mutation Fields
+    policies.kyverno.io/description: >
+      Field-level allowlist cho ServiceAccount self-heal executor
+      (tf3-cdo-controller). Self-heal chỉ được sửa replicas + resources; chặn
+      tuyệt đối privileged/hostNetwork/hostPID/hostIPC, hostPath, và thay đổi
+      container image trên Deployment/StatefulSet namespace tenant. Độc lập với
+      RBAC và app safety-gate (defense-in-depth).
+spec:
+  validationFailureAction: Enforce
+  background: false
+  rules:
+    # ── Rule 1: cấm field leo thang đặc quyền ────────────────────────────────
+    - name: executor-no-privilege-escalation
+      match:
+        any:
+          - resources:
+              kinds:
+                - Deployment
+                - StatefulSet
+              namespaces:
+                - tenant-a
+                - tenant-b
+      preconditions:
+        all:
+          - key: "{{ request.userInfo.username }}"
+            operator: Equals
+            value: "system:serviceaccount:self-heal-system:tf3-cdo-controller"
+      validate:
+        message: >
+          Self-heal executor KHÔNG được set privileged/hostNetwork/hostPID/hostIPC
+          (chống leo thang đặc quyền qua self-heal).
+        pattern:
+          spec:
+            template:
+              spec:
+                =(hostNetwork): "false"
+                =(hostPID): "false"
+                =(hostIPC): "false"
+                containers:
+                  - =(securityContext):
+                      =(privileged): "false"
+    # ── Rule 2: cấm hostPath volume ──────────────────────────────────────────
+    - name: executor-no-hostpath
+      match:
+        any:
+          - resources:
+              kinds:
+                - Deployment
+                - StatefulSet
+              namespaces:
+                - tenant-a
+                - tenant-b
+      preconditions:
+        all:
+          - key: "{{ request.userInfo.username }}"
+            operator: Equals
+            value: "system:serviceaccount:self-heal-system:tf3-cdo-controller"
+      validate:
+        message: >
+          Self-heal executor KHÔNG được mount hostPath volume (chống thoát container).
+        foreach:
+          - list: "request.object.spec.template.spec.volumes || `[]`"
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.keys(@) }}"
+                    operator: AnyIn
+                    value:
+                      - hostPath
+    # ── Rule 3: cấm executor đổi container image ─────────────────────────────
+    - name: executor-no-image-change
+      match:
+        any:
+          - resources:
+              kinds:
+                - Deployment
+                - StatefulSet
+              operations:
+                - UPDATE
+              namespaces:
+                - tenant-a
+                - tenant-b
+      preconditions:
+        all:
+          - key: "{{ request.userInfo.username }}"
+            operator: Equals
+            value: "system:serviceaccount:self-heal-system:tf3-cdo-controller"
+      validate:
+        message: >
+          Self-heal executor CHỈ được sửa replicas + resources, KHÔNG được đổi
+          container image (image do GitOps/ArgoCD quản lý).
+        foreach:
+          - list: "request.object.spec.template.spec.containers"
+            deny:
+              conditions:
+                all:
+                  - key: "{{ element.image }}"
+                    operator: AnyNotIn
+                    value: "{{ request.oldObject.spec.template.spec.containers[].image || `[]` }}"

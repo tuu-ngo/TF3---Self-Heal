@@ -316,7 +316,7 @@ helm install kyverno kyverno/kyverno \
   --set admissionController.replicas=1
 ```
 
-### ClusterPolicy — 3 policy chính
+### ClusterPolicy — 4 policy chính
 
 #### Policy 1: Giới hạn replicas tối đa
 
@@ -417,6 +417,17 @@ spec:
         Namespace '{{ request.namespace }}' không nằm trong allowlist.
         Deployment mutation chỉ được phép trong: tenant-a, tenant-b, kyverno, argocd, self-heal-system, platform, kube-system.
       deny: {}
+```
+
+#### Policy 4: Field-level mutation-allowlist cho executor (W12 — bắt kịp CDO-01)
+
+Ba policy trên chặn *value* (replicas/memory) và *namespace*, nhưng chưa chặn executor đổi **field nguy hiểm** (image, privileged, hostPath). Policy 4 scope theo đúng SA executor (`system:serviceaccount:self-heal-system:tf3-cdo-controller`) → self-heal **chỉ** được sửa replicas + resources; chặn tuyệt đối đổi container image / set privileged / hostNetwork / hostPID / hostIPC / hostPath. Chỉ áp cho executor SA nên **không cản ArgoCD/GitOps deploy image bình thường**. File: [`manifests/kyverno/policies/restrict-executor-mutations.yaml`](../manifests/kyverno/policies/restrict-executor-mutations.yaml) (đã validate `kubectl apply --dry-run=server` trên Kyverno live).
+
+```yaml
+# 3 rule (Enforce, precondition userInfo == executor SA):
+#   R1 pattern: containers[].securityContext.privileged=false, hostNetwork/PID/IPC=false
+#   R2 foreach-deny: volumes[] chứa key hostPath -> REJECT
+#   R3 foreach-deny (UPDATE): containers[].image AnyNotIn oldObject images -> REJECT (đổi image)
 ```
 
 ### Bảng tổng hợp 3 lớp bảo vệ

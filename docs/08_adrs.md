@@ -268,11 +268,12 @@ Cần lớp thứ 3 độc lập ở cluster level: Kubernetes Admission Webhook
 
 ### Decision
 
-CDO-02 chọn **Kyverno** để implement Admission Control Layer với 3 ClusterPolicy:
+CDO-02 chọn **Kyverno** để implement Admission Control Layer với 4 ClusterPolicy:
 
 1. `restrict-replicas-tenant-namespaces` — replicas ≤ 10 trong tenant-a, tenant-b
 2. `restrict-memory-limit-tenant-namespaces` — memory limit ≤ 4Gi per container
 3. `restrict-workload-mutation-namespace` — Deployment mutation chỉ trong namespace allowlist
+4. `restrict-executor-mutations` (W12) — field-level allowlist theo SA executor: chỉ cho sửa replicas+resources, cấm đổi container image / privileged / hostNetwork/PID/IPC / hostPath
 
 ### Why Kyverno
 
