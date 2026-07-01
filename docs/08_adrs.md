@@ -2,7 +2,7 @@
 
 **Doc owner:** CDO-02  
 **Trạng thái:** Ready for W11 Pack #1 review  
-**Cập nhật lần cuối:** 2026-06-25 (sync AI commit 86b32e7)  
+**Cập nhật lần cuối:** 2026-07-01 (thêm ADR-010 alert-source, ADR-011 runbook-DSL)  
 
 ADR là nơi ghi lại các quyết định kiến trúc quan trọng, lý do chọn và trade-off. File này append-only; nếu decision thay đổi ở W12 thì thêm ADR mới hoặc đánh dấu ADR cũ là superseded.
 
@@ -305,3 +305,80 @@ CDO-02 chọn **Kyverno** để implement Admission Control Layer với 3 Cluste
 - **OPA Gatekeeper**: Admission webhook mạnh hơn, có audit controller và separation giữa policy schema và logic. Nhưng Rego learning curve quá cao cho W12 timeline. Rejected.
 - **Custom ValidatingWebhookConfiguration**: Linh hoạt nhất nhưng phải viết webhook server, TLS cert, registration từ đầu. Không hợp lý cho scope 6 ngày. Rejected.
 - **Chỉ dùng Safety Gate + RBAC (không có Layer 3)**: Đủ cho happy path demo nhưng không bịt được gap executor bug bypass và RBAC value blindness. Rejected — vi phạm trainer feedback về "Zero unsafe action" tại cluster level.
+
+---
+
+## ADR-010 - Chọn Alertmanager webhook → Forwarder → SQS làm alert source (poll K8s là fallback)
+
+- **Status:** Accepted
+- **Date:** 2026-07-01
+
+### Context
+
+Telemetry-contract §2.5.C chốt kiến trúc thu tín hiệu: Collector (Prometheus/OTel/Fluentd) ghi vào **SQS buffer nội bộ CDO**, rồi Forwarder/Worker batch-push sang `/v1/detect`; AI không biết SQS tồn tại. CDO-02 cần chọn **cụ thể nguồn phát alert real-time** đẩy vào SQS.
+
+Bản build ban đầu dùng **Option-1: executor poll K8s pod-status mỗi 30s** (`executor/watcher.py`). Cách này đơn giản, near-real-time, chạy được không cần thêm component — nhưng lệch contract (không đi qua SQS buffer, không tách collector khỏi executor) và không bắt được signal chỉ có ở tầng metric (latency p95, error-rate, working-set memory) mà kube-state pod-status không thấy.
+
+### Decision
+
+CDO-02 chọn **Alertmanager webhook → Alert Forwarder → SQS** làm **nguồn chính**:
+
+1. `kube-prometheus-stack` scrape kube-state-metrics / node-exporter / podinfo; `PrometheusRule` fire alert (`PodOOMKilled`, `ContainerCrashLooping`, `ImagePullBackOff`, `HighContainerMemory`, `HighLatencyP95`, `HighErrorRate`).
+2. Alertmanager route mọi alert `firing` → webhook `POST /alerts` tới **Alert Forwarder** (`forwarder/`).
+3. Forwarder chuẩn hóa alert → telemetry signal (12 enum, `labels.system=K8S_NATIVE`) → `sqs:SendMessage` vào `cdo-telemetry-*`.
+4. Executor SQS consumer (`executor/sqs_source.py`) long-poll drain → `handle_incident` → `/v1/detect`.
+
+**Poll K8s 30s (`watcher.py`) giữ làm fallback** (defense-in-depth): khi `CDO_TELEMETRY_QUEUE_URL` rỗng hoặc SQS lỗi, executor tự poll. `heal_cooldown_s` chống double-fire giữa 2 nguồn.
+
+### Consequences
+
+- **Pro:** Khớp đúng telemetry-contract §2.5.C — collector tách khỏi executor, đi qua SQS buffer (chịu tải burst, có DLQ `maxReceiveCount=3`).
+- **Pro:** Bắt được signal tầng metric (latency/error-rate/memory working-set) mà pod-status poll không thấy.
+- **Pro:** alertname ↔ signal_name ánh xạ 1-1, khai báo trong `PrometheusRule` (versioned), dễ audit tại buổi chấm.
+- **Pro:** Fallback poll đảm bảo vẫn self-heal khi monitoring stack down → không single-point-of-failure.
+- **Trade-off:** Thêm 3 thành phần vận hành (kube-prometheus-stack, Forwarder, SQS wiring) + IRSA `sqs:SendMessage` cho Forwarder.
+- **Trade-off:** Alert latency phụ thuộc `for:` của PrometheusRule + scrape interval (~15–60s) — cho urgent OOM vẫn đạt RTO < 60s vì `pod_oom_event` fire gần tức thì.
+
+### Alternatives considered
+
+- **Chỉ poll K8s pod-status (Option-1)**: đơn giản nhất nhưng lệch contract, mù signal metric. Giữ làm fallback thay vì nguồn chính.
+- **CloudWatch Alarms → SNS → SQS**: AWS-native nhưng metric K8s phải qua Container Insights (độ trễ + cost cao), khó map về 12 signal enum, và cột chặt vào CloudWatch thay vì Prometheus-compatible mà ADR-005 đã chọn.
+- **Alertmanager webhook gọi thẳng `/v1/detect`**: bỏ SQS → vi phạm §2.5.C (mất buffer/DLQ, ghép collector vào AI path), không chịu được burst alert.
+
+---
+
+## ADR-011 - Runbook là catalog khai báo qua `action_plan[]` JSON, KHÔNG dùng DSL riêng
+
+- **Status:** Accepted
+- **Date:** 2026-07-01
+
+### Context
+
+Self-heal cần biểu diễn "runbook" — chuỗi bước chữa lành cho từng loại lỗi (OOM→patch memory, crashloop→restart, bad-deploy→rollback...). Câu hỏi kiến trúc: **runbook được viết bằng gì?** Một DSL/scripting riêng (YAML workflow, Rego, Python plugin, Argo Workflow) hay tái dùng schema contract sẵn có?
+
+Rủi ro của DSL riêng: mỗi runbook mới là một đơn vị code/policy phải review về mặt an toàn; DSL đủ mạnh để rẽ nhánh/lặp thì cũng đủ mạnh để làm điều nguy hiểm (Turing-complete = không thể chứng minh "zero unsafe action" tĩnh). Ranh giới ADR-002 (AI decide, CDO execute) sẽ mờ nếu runbook chứa logic thực thi.
+
+### Decision
+
+CDO-02 **không xây DSL runbook riêng**. Runbook được biểu diễn thuần bằng **schema `action_plan[]` của ai-api-contract §3.2**:
+
+- AI `/v1/decide` trả `matched_runbook` (tên định danh, vd `OOMPatchMemoryRunbook`) + `action_plan[]`, mỗi step là `{action ∈ 5 enum, target, params}`.
+- "Ngôn ngữ runbook" = **enum action cố định** (`RESTART_DEPLOYMENT`, `PATCH_MEMORY_LIMIT`, `SCALE_REPLICAS`, `ROLLOUT_UNDO`, `ROTATE_SECRET`) + `pattern_type` (`urgent`/`deferred`) + `verify_policy` + `blast_radius_config`. Không rẽ nhánh, không vòng lặp, không biểu thức tùy ý.
+- Catalog runbook là **dữ liệu** (bảng trong `06_runbook_library.md`; reference trong `mock_ai_server.py`), không phải code. Thêm runbook = thêm entry ánh xạ signal→action, không cần compiler/interpreter mới.
+- Điều khiển vòng lặp (retry/rollback/escalate) do `/v1/verify.next_action` quyết định (4 giá trị enum), CDO thực thi — không nhúng trong runbook.
+
+### Consequences
+
+- **Pro:** Mọi runbook rút gọn về 5 action enum → safety gate kiểm tra tĩnh được (6 check), chứng minh "zero unsafe action" khả thi. Không có DSL Turing-complete để bypass.
+- **Pro:** Ranh giới ADR-002 sạch: runbook chỉ mô tả *cái gì* (declarative), CDO quyết định *làm thế nào* (execute). AI không nhúng logic thực thi.
+- **Pro:** Không phải build + test + version một DSL engine trong 6 ngày; tái dùng JSON schema đã FREEZE.
+- **Pro:** Runbook mới không cần deploy code — chỉ cần AI trả tên + action_plan hợp lệ; CDO validate bằng enum có sẵn.
+- **Trade-off:** Runbook đa bước phức tạp (điều kiện, phụ thuộc chéo service) không biểu diễn được — chấp nhận vì self-heal scope là các pattern nguyên tử; case phức tạp → `ESCALATE` cho người.
+- **Trade-off:** Thêm loại action mới (ngoài 5 enum) cần sửa contract + safety gate + Kyverno, không "cắm nóng" bằng runbook. Đây là *chủ ý* — mọi khả năng thực thi mới phải qua review contract.
+
+### Alternatives considered
+
+- **YAML workflow DSL (kiểu Argo Workflows / Ansible playbook)**: biểu đạt mạnh, quen thuộc, nhưng thành bề mặt thực thi tùy ý → phải sandbox + review từng runbook; quá nặng và rủi ro an toàn cho capstone. Rejected.
+- **Rego/OPA policy làm runbook**: đã loại vì learning curve ở ADR-009; và Rego hợp cho *validate* hơn *orchestrate*. Rejected.
+- **Python plugin per runbook**: linh hoạt tối đa nhưng mỗi plugin là code thực thi tùy ý trong executor — phá vỡ "zero unsafe action" và ranh giới AI/CDO. Rejected.
+- **Argo Workflows CRD**: mạnh cho multi-step orchestration nhưng thêm một control plane, một CRD engine phải vận hành/audit; thừa cho pattern nguyên tử. Rejected.

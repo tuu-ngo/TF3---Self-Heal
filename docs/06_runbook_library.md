@@ -119,12 +119,15 @@ Mỗi runbook ghi: **trigger** (data nào), **AI làm gì**, **action_plan**, **
 - **Trigger data**: `queue_backlog` cao (vd 15000), hoặc `service_throughput_rps` vượt capacity.
 - **AI quyết định**: `pattern_type:"deferred"` (KHÔNG mutate trực tiếp K8s), `SCALE_REPLICAS`, `params.replicas` trong **1–10**. CDO tạo Git commit → ArgoCD sync.
 - **Verify**: sau sync, `queue_backlog` giảm; replicas Ready.
+- **Trạng thái**: quyết định + safety gate tested (synthetic inject `sc10`); **Git→ArgoCD ops là designed-only stub** (ADR-008, [w12-scope]).
+- **Diagram**: `diagrams/deferred-r4-capacity-scale.svg`.
 - Scenario tham chiếu: `sc10`.
 
 ### R5 — SecretRotationRunbook (🟡 designed-only)
 - **Trigger data**: `secret_expiry_warning` (số ngày còn lại ≤ ngưỡng).
 - **AI quyết định**: `pattern_type:"deferred"`, `ROTATE_SECRET`, `params.secret_name` phải nằm trong allow-list. CDO path GitOps.
 - **Trạng thái**: thiết kế-trên-giấy (paper playbook + diagram), CHƯA build auto Git ops cho W12 — xem [w12-scope]. AI có thể trả runbook này; CDO sẽ deny an toàn nếu secret ngoài allow-list.
+- **Diagram**: `diagrams/deferred-r5-secret-rotation.svg`.
 
 ---
 
