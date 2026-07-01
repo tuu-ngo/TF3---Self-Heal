@@ -1,14 +1,14 @@
 # Cost Analysis - Task Force 3 Self-Heal Engine - CDO-02
 
 **Doc owner:** CDO-02  
-**Trạng thái:** Draft W11 → Refine với actual evidence W12  
-**Cập nhật lần cuối:** 2026-06-25  
+**Trạng thái:** W12 — §8 đã điền **measured actual** từ Cost Explorer  
+**Cập nhật lần cuối:** 2026-07-02  
 
 ---
 
 ## 1. Mục tiêu tài liệu
 
-Tài liệu này ước tính chi phí vận hành platform CDO-02 trong môi trường sandbox capstone (W11-W12) và dự báo chi phí nếu scale lên production với 2 tenant thật. Mọi con số W11 là **forecast** dựa trên thiết kế; cột "Actual" sẽ được điền sau khi chạy evidence W12.
+Tài liệu này ước tính chi phí vận hành platform CDO-02 trong môi trường sandbox capstone (W11-W12) và dự báo chi phí nếu scale lên production với 2 tenant thật. Mọi con số W11 là **forecast** dựa trên thiết kế; cột "Actual" (§8) đã được **đo thực tế** từ AWS Cost Explorer ở W12 (2026-07-02).
 
 Scope cost CDO-02 bao gồm: VPC/networking, EKS cluster, observability stack, audit/storage, messaging buffer và các AWS managed services. **Không bao gồm** chi phí AI inference (Bedrock) vì đó là responsibility của AI team.
 
@@ -60,7 +60,7 @@ Scope cost CDO-02 bao gồm: VPC/networking, EKS cluster, observability stack, a
 |---|---|---|---|---|
 | S3 Object Lock audit bucket | ~500 MB audit logs (10 ngày) | $0.023/GB/month | $0.004 | **$0.04** |
 | S3 PUT requests (audit writes) | ~10,000 objects/ngày | $0.005/1,000 | $0.05 | **$0.50** |
-| S3 GET requests (Athena query) | ~1,000 queries | $0.0004/1,000 | $0.001 | **$0.01** |
+| CloudWatch Logs Insights (audit query) | ~1,000 queries | scan-based, dưới free-tier | $0.001 | **$0.01** |
 | S3 Terraform remote state | ~1 MB | negligible | - | **< $0.01** |
 | S3 Object Lock storage overhead | WORM governance mode | included in storage | - | - |
 | **Subtotal S3** | | | **~$0.06/ngày** | **~$0.55** |
@@ -146,7 +146,7 @@ Components chạy trong EKS cluster (Prometheus, Alertmanager, Grafana, OTel Col
 | Amazon S3 (audit + state) | $0.55 | 0.5% |
 | Amazon DynamoDB | $0.10 | 0.1% |
 | Amazon SQS | $0.00 | 0.0% |
-| Amazon Athena | $0.10 | 0.1% |
+| CloudWatch Logs Insights (audit query) | $0.10 | 0.1% |
 | Secrets Manager | $0.28 | 0.3% |
 | **Tổng CDO-02 platform** | **~$92.00** | **100%** |
 
@@ -173,7 +173,7 @@ Components chạy trong EKS cluster (Prometheus, Alertmanager, Grafana, OTel Col
 | Single NAT Gateway thay vì per-AZ | Tiết kiệm ~$32/10 ngày | Chấp nhận single point of failure cho demo |
 | SQS Free Tier | Tiết kiệm ~$4/10 ngày | Sandbox volume nằm trong free tier |
 | DynamoDB On-Demand (không provisioned) | Tiết kiệm ~$5/10 ngày | On-demand thích hợp cho traffic không đều |
-| S3 Athena thay vì OpenSearch | Tiết kiệm ~$30/10 ngày | Query by correlation_id đủ dùng Athena |
+| CloudWatch Logs Insights thay vì OpenSearch | Tiết kiệm ~$30/10 ngày | Query by correlation_id đủ dùng Logs Insights (ADR-004/010), không cần Glue+Athena/OpenSearch |
 | In-cluster Prometheus thay vì Amazon Managed Prometheus | Tiết kiệm ~$20/10 ngày | Sandbox không cần managed service |
 | EKS node desired=2 (không over-provision) | Baseline cost thấp | Scale up chỉ khi load test |
 | **VPC Gateway Endpoint S3 + DynamoDB** (W12) | Giảm NAT data charge cho S3/DynamoDB traffic; endpoint bản thân FREE | Implemented trong `infra/modules/vpc/main.tf` — traffic audit write + TF state + idempotency không qua NAT |
@@ -198,19 +198,29 @@ Nếu scale từ sandbox lên production thật với 2 tenant chạy liên tụ
 
 ---
 
-## 8. Bảng So Sánh: Actual vs Forecast (Điền W12)
+## 8. Bảng So Sánh: Actual vs Forecast (MEASURED W12 — 2026-07-02)
 
-| Thành phần | Forecast (W11) | Actual (W12) | Delta |
-|---|---:|---:|---:|
-| EKS cluster + nodes | $50.00 | TBD | TBD |
-| VPC & Networking | $25.15 | TBD | TBD |
-| CloudWatch | $15.53 | TBD | TBD |
-| S3 + Athena | $0.65 | TBD | TBD |
-| DynamoDB + SQS | $0.10 | TBD | TBD |
-| ECR + Secrets Manager | $0.57 | TBD | TBD |
-| **Total** | **~$92.00** | **TBD** | **TBD** |
+**Nguồn số liệu:** AWS Cost Explorer (`aws ce get-cost-and-usage`), account `012619468490`, cửa sổ **30 ngày gần nhất** (2026-06-02 → 2026-07-02), metric `UnblendedCost` (gross, pre-credit), lọc `RECORD_TYPE=Usage` để loại các dòng credit/tax.
 
-> Cột Actual sẽ được điền từ AWS Cost Explorer sau khi chạy full simulation W12. Tag tất cả resources với `Project=tf3-cdo-02` để filter cost chính xác.
+| Thành phần | Forecast (W11, 10 ngày) | **Actual gross (đo, 30 ngày)** | Ghi chú |
+|---|---:|---:|---|
+| EKS cluster + nodes | $50.00 | **$16.20** | EKS control plane $14.10 + EC2-Compute node $2.10 |
+| VPC & Networking | $25.15 | **$2.55** | EC2-Other (NAT/EBS/endpoint) $2.25 + VPC $0.15 + ELB $0.15 |
+| CloudWatch | $15.53 | **$0.00** | Nằm trong free-tier (logs/metrics dưới ngưỡng) |
+| KMS (EKS secret encryption) | — | **$0.43** | Không có trong forecast W11 |
+| Secrets Manager + ECR | $0.57 | **$0.015** | Secrets $0.014 + ECR $0.0005 |
+| S3 + DynamoDB + SQS | $0.75 | **$0.005** | S3 $0.005; DynamoDB/SQS $0 (free-tier) |
+| RDS + Cost Explorer API | — | **$0.07** | RDS leftover $0.05 + CE API query $0.02 (chi phí tạo doc này) |
+| **Total gross (list price)** | **~$92.00** | **~$19.28** | |
+| **Net billed (sau AWS Credits)** | — | **≈ $0.00** | Credit −$19.28 offset 100% Usage → out-of-pocket ≈ 0 |
+
+**Giải thích chênh lệch (gross $19.28 đo < $92 forecast):**
+1. **Cluster chỉ chạy một phần cửa sổ 30 ngày** — deploy live gần đây (không phải cả tháng); EKS control plane $14.10 cho thấy cluster chạy ~6 ngày, không phải 30.
+2. **CloudWatch/DynamoDB/SQS nằm trong free-tier** — forecast tính list price, thực tế = $0.
+3. **VPC endpoint + single-NAT** đã tối ưu (xem §6) → networking $2.55 thay vì $25 forecast.
+4. **100% chi phí được AWS Credits che** → out-of-pocket thực tế của account = **$0.00** (net billed).
+
+> Đối chiếu apples-to-apples không hoàn hảo (forecast 10 ngày vs đo 30 ngày, cluster chạy partial) — nhưng **hướng đúng: chi phí thực thấp hơn forecast bảo thủ, và net billed = $0 nhờ credits**. Reproduce: `aws ce get-cost-and-usage --time-period Start=2026-06-02,End=2026-07-02 --granularity MONTHLY --metrics UnblendedCost --filter '{"Dimensions":{"Key":"RECORD_TYPE","Values":["Usage"]}}' --group-by Type=DIMENSION,Key=SERVICE`.
 
 ---
 
@@ -232,5 +242,5 @@ Nếu scale từ sandbox lên production thật với 2 tenant chạy liên tụ
 
 - [`02_infra_design.md`](02_infra_design.md) - Component list và architecture
 - [`04_deployment_design.md`](04_deployment_design.md) - IaC và deployment strategy
-- [`07_test_eval_report_v1.0_Duc.md`](07_test_eval_report_v1.0_Duc.md) - SLO evidence và test window
+- [`07_test_eval_report.md`](07_test_eval_report.md) - SLO evidence và test window (measured W12)
 - AI team `docs/template/03_ai_engine_spec.md` §8 - AI inference cost (Bedrock, thuộc AI budget)

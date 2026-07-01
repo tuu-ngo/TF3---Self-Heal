@@ -1,7 +1,9 @@
-# Test & Eval Report - Task Force 3 Self-Heal Engine - CDO-02
+# Test & Eval Report (v1.0 — ARCHIVE) - Task Force 3 Self-Heal Engine - CDO-02
+
+> ⚠️ **SUPERSEDED — bản nộp chính thức Pack #2 là [`07_test_eval_report.md`](07_test_eval_report.md)** (có §0 kết quả thật W12, auto-resolve 71.4%, online chaos evidence). File này giữ làm archive lịch sử test-plan (TC-01..21) của teammate.
 
 **Doc owner:** CDO-02  
-**Trạng thái:** Draft cho W12 Pack #2 execution  
+**Trạng thái:** ARCHIVE (superseded by canonical `07_test_eval_report.md`)  
 **Cập nhật lần cuối:** 2026-06-26 (sync contract-new-4)  
 
 ## 1. Mục tiêu tài liệu

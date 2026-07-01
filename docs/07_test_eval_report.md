@@ -1,4 +1,6 @@
-# 07 Test & Evaluation Report v2.0 - CDO-02
+# 07 Test & Evaluation Report - CDO-02
+
+> Bản nộp chính thức Pack #2 (canonical). Lịch sử test-plan v1.0 archive ở [`07_test_eval_report_v1.0_Duc.md`](07_test_eval_report_v1.0_Duc.md).
 
 **Dự án:** TF3 Self-Heal Agent AWS - CDO-02  
 **Report owner:** CDO-02  
