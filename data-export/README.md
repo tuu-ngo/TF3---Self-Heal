@@ -8,8 +8,28 @@ Dữ liệu trích từ hệ thống live (EKS `cdo-eks-cluster-dev`, us-east-1)
 | File | Nội dung | Nguồn |
 |---|---|---|
 | `simple_metrics.csv` | Chuỗi metric dày: cột `time` + `<service>_<metric>` | Prometheus `query_range` (kube-prometheus-stack) |
-| `logs.csv` | `timestamp,service,level,message` | `kubectl logs --timestamps` các pod tenant |
+| `logs.csv` | `timestamp,service,level,message` (podinfo — thưa) | `kubectl logs` cdo-sample-api |
+| `online_boutique_logs.csv` | **LOG THẬT DÀY** `timestamp,service,level,message` — 10 service | `executor/tools/export_logs.py` |
 | `ground_truth.json` | **NHÃN**: `inject_time` + `suspected_fault_type` mỗi fault | Sinh bởi `executor/tools/inject_faults.sh` |
+
+## 📜 LOG THẬT từ Online Boutique (2026-07-01) — nguồn log chính cho AI team
+Đã deploy **Google Online Boutique** (11 microservice + Locust loadgenerator) vào `tenant-a` —
+app thật, log verbose, **khớp đúng `platform_profile_online_boutique.json`** của engine.
+
+`online_boutique_logs.csv`: **~5.8k dòng** từ 10 service (frontend, checkoutservice, cartservice,
+paymentservice, recommendationservice, productcatalogservice, shippingservice, currencyservice,
+emailservice, adservice). Log JSON có `severity` + `message` + `http.*` → hợp drain3/BARO.
+Levels: DEBUG/INFO/WARNING. Loadgenerator bơm traffic liên tục → log sinh không ngừng.
+
+Regenerate / lấy thêm:
+```bash
+# toàn bộ (mặc định 10 service, 15 phút gần nhất, tail 2000/service)
+python executor/tools/export_logs.py > data-export/online_boutique_logs.csv
+# tuỳ chỉnh:
+LOG_SVCS=frontend,checkoutservice LOG_SINCE=30m LOG_TAIL=5000 python executor/tools/export_logs.py
+```
+> Metric của Online Boutique lấy cùng cách `export_telemetry.py` (đổi SERVICES sang các svc OB) —
+> nhưng engine đã có metric online-boutique từ dataset gốc; **log mới là thứ họ thiếu**.
 
 ## 🎯 Dataset có ANOMALY THẬT + nhãn (2026-07-01)
 Đã deploy `loadgen` (traffic nền ~12-25 req/s vào podinfo) + inject fault thật qua chaos endpoints.
