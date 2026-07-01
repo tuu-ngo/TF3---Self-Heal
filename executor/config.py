@@ -85,6 +85,13 @@ class Config:
     sqs_wait_time_s: int = _env_int("CDO_SQS_WAIT_S", 20)       # long-poll
     sqs_max_messages: int = _env_int("CDO_SQS_MAX_MSGS", 10)    # batch ReceiveMessage
 
+    # --- Prometheus dense-window (AI /v1/detect cần chuỗi metric DÀY, không phải event rời) ---
+    # Rỗng → tắt (executor dùng window rời cũ). Trỏ Prometheus in-cluster.
+    prometheus_base_url: str = _env("CDO_PROMETHEUS_URL", "")
+    prom_window_seconds: int = _env_int("CDO_PROM_WINDOW_S", 3600)  # cửa sổ query_range
+    prom_step_seconds: int = _env_int("CDO_PROM_STEP_S", 15)        # step nhỏ → dày điểm
+    prom_timeout_s: float = _env_float("CDO_PROM_TIMEOUT_S", 20.0)
+
     # --- Pod Status Watcher (Option 1 telemetry collector) ---
     poll_interval_s: int = _env_int("CDO_POLL_INTERVAL_S", 30)
     restart_count_threshold: int = _env_int("CDO_RESTART_THRESHOLD", 3)

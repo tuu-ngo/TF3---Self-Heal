@@ -1,0 +1,147 @@
+# =============================================================================
+# AI ENGINE — DEPLOYMENT (real image, swap-in W12)
+# =============================================================================
+# Nguồn: manifests/ai-engine/deployment.yaml.template, đã patch cho engine thật:
+#   - API_PORT=8080 (engine mặc định 8050; ép về 8080 để khớp Service + executor AI_BASE_URL)
+#   - PLATFORM_PROFILE_PATH → profile CDO (namespaces tenant-a/tenant-b, system K8S_NATIVE)
+#     baked trong image tại /app/adr/ (Dockerfile COPY adr/).
+#   - USE_LLM_*=False → deterministic BOCPD/BARO, KHÔNG cần Bedrock/IRSA để chạy.
+#   - replicas=1 + HPA min=1 (tiết kiệm pod-slot t3.medium; nâng khi cần).
+# Apply: kubectl apply -f manifests/ai-engine/deployment.yaml
+# =============================================================================
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-engine
+  namespace: self-heal-system
+  labels:
+    app: ai-engine
+    component: ai-engine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ai-engine
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: ai-engine
+        component: ai-engine
+    spec:
+      serviceAccountName: ai-engine
+      containers:
+        - name: ai-engine
+          image: 012619468490.dkr.ecr.us-east-1.amazonaws.com/ai-engine:v3
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: API_HOST
+              value: "0.0.0.0"
+            - name: API_PORT
+              value: "8080"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            # Profile CDO baked trong image (adr/). System K8S_NATIVE, namespaces tenant-a/tenant-b.
+            - name: PLATFORM_PROFILE_PATH
+              value: "/app/adr/platform_profile_cdo.json"
+            - name: PLATFORM_PROFILE_SCHEMA_PATH
+              value: "/app/adr/platform_profile.schema.json"
+            - name: DEPENDENCY_GRAPH_PATH
+              value: "/app/adr/dependency_graph_cdo.json"
+            - name: SYSTEM_NAME
+              value: "K8S_NATIVE"
+            - name: DEFAULT_NAMESPACE
+              value: "tenant-a"
+            - name: DEFAULT_SERVICE
+              value: "cdo-sample-api"
+            - name: ALLOWED_NAMESPACES
+              value: "tenant-a,tenant-b"
+            # Executor gửi telemetry_window trực tiếp → engine không cần telemetry_source loader.
+            - name: TELEMETRY_RUNTIME_MODE
+              value: "production"
+            # LLM tắt → deterministic, không cần Bedrock. Bật sau nếu muốn LLM fault-rank.
+            - name: USE_LLM_DECISION
+              value: "False"
+            - name: USE_LLM_FAULT_TYPE
+              value: "False"
+          # Theo deployment-contract §2.A. Detect chạy trên cửa sổ ~150-600 điểm
+          # (EVAL_BOCPD_WINDOW ~150; benchmark_e2e_push gửi ~150 metric + 10 log) → 2Gi đủ.
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1024Mi"
+            limits:
+              cpu: "1000m"
+              memory: "2048Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 3
+          # LƯU Ý: image AI chạy root (Dockerfile không set USER) → KHÔNG đặt runAsNonRoot:true
+          # (sẽ CreateContainerError). Giữ tối thiểu: chặn privilege escalation + drop caps.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-engine
+  namespace: self-heal-system
+  labels:
+    app: ai-engine
+spec:
+  type: ClusterIP
+  selector:
+    app: ai-engine
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ai-engine
+  namespace: self-heal-system
+  labels:
+    app: ai-engine
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ai-engine
+  minReplicas: 1
+  maxReplicas: 4
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80

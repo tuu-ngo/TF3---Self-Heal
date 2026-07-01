@@ -30,6 +30,7 @@ from idempotency import IdempotencyLock
 from k8s_client import K8sClient
 from models import DetectResponse
 from pre_decide_gate import FlapTracker, evaluate
+from prom_source import PromWindow, deployment_of
 from safety_gate import check as safety_check
 from sqs_source import SqsTelemetrySource
 
@@ -42,6 +43,7 @@ class Executor:
         self.flap = FlapTracker()
         self.breaker = CircuitBreaker(cfg)
         self.k8s = K8sClient(in_cluster=False)
+        self.prom = PromWindow(cfg)  # dựng dense-window từ Prometheus cho detect
 
     def handle_incident(self, telemetry_window: list[dict],
                         tenant_namespace: str,
@@ -57,9 +59,19 @@ class Executor:
                                 namespace=tenant_namespace, telemetry_window=telemetry_window)
 
         try:
+            # ---------- [0] ENRICH — dựng dense-window từ Prometheus ----------
+            # AI (BOCPD/BARO) cần chuỗi metric dày; alert/SQS chỉ cho vài signal rời.
+            # Query Prometheus theo (namespace,deployment) → nếu có, dùng làm window detect.
+            deployment = deployment_of(telemetry_window)
+            dense = self.prom.build_window(tenant_namespace, deployment, self.cfg.tenant_id)
+            detect_window = dense if dense else telemetry_window
+            if dense:
+                log.event("prom_window_built", namespace=tenant_namespace,
+                          detail=f"{len(dense)} points deployment={deployment}")
+
             # ---------- [1] DETECT ----------
             log.event(A.DETECT_CALLED)
-            detect: DetectResponse = self.ai.detect(telemetry_window, correlation_id)
+            detect: DetectResponse = self.ai.detect(detect_window, correlation_id)
             correlation_id = detect.correlation_id or correlation_id
             ctx.correlation_id = correlation_id
             ctx.detect = detect
@@ -207,12 +219,17 @@ class Executor:
         rồi scrape lại telemetry hiện tại của deployment đã tác động.
         Mock mode (không cluster) → trả window gốc để Offline test vẫn chạy hết loop.
         """
-        if not self.k8s.enabled:
-            return telemetry_window
         first = decide.action_plan[0]
         _, _, deployment = first.target.partition("/")  # "deployment/<name>"
         wait_s = min(decide.verify_policy.window_seconds, self.cfg.verify_max_wait_s)
         time.sleep(wait_s)
+        # Ưu tiên dense-window từ Prometheus (metric SỐ, hợp validator AI) — giống detect.
+        # Watcher scrape phát signal rời có thể value-string → AI verify reject 422.
+        dense = self.prom.build_window(first.namespace, deployment, self.cfg.tenant_id)
+        if dense:
+            return dense
+        if not self.k8s.enabled:
+            return telemetry_window
         fresh = W.scrape_deployment_telemetry(self.k8s, first.namespace, deployment, self.cfg)
         return fresh or telemetry_window
 

@@ -98,7 +98,8 @@ class AIClient:
             code = resp.status_code
             if code == 200:
                 return resp.json()
-            if code == 400:
+            if code in (400, 422):
+                # 422 = Pydantic validation (vd value-type signal) — lỗi request, KHÔNG phải AI down
                 raise AIBadRequest(self._msg(resp))
             if code == 401:
                 raise AIUnauthorized(self._msg(resp))

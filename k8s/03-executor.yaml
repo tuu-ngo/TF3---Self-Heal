@@ -20,7 +20,7 @@ spec:
       serviceAccountName: tf3-cdo-controller
       containers:
         - name: executor
-          image: 012619468490.dkr.ecr.us-east-1.amazonaws.com/cdo-executor:v5
+          image: 012619468490.dkr.ecr.us-east-1.amazonaws.com/cdo-executor:v7
           command: ["python", "main.py", "--watch"]
           env:
             - name: PYTHONUNBUFFERED
@@ -42,6 +42,21 @@ spec:
             # Nguồn telemetry chính (SQS buffer ← Forwarder). Rỗng → fallback poll K8s 30s.
             - name: CDO_TELEMETRY_QUEUE_URL
               value: https://sqs.us-east-1.amazonaws.com/012619468490/cdo-telemetry-dev
+            # Prometheus dense-window: mỗi incident, executor query metric dày → detect.
+            - name: CDO_PROMETHEUS_URL
+              value: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+            - name: CDO_PROM_WINDOW_S
+              value: "3600"
+            - name: CDO_PROM_STEP_S
+              value: "15"
+            # Engine thật (BOCPD/BARO trên dense-window) xử lâu hơn mock → nới timeout detect
+            # (SLA contract 300ms là target của AI; thực tế BARO RCA vài giây).
+            - name: AI_TIMEOUT_DETECT_S
+              value: "15"
+            - name: AI_TIMEOUT_DECIDE_S
+              value: "15"
+            - name: AI_TIMEOUT_VERIFY_S
+              value: "10"
           resources:
             requests:
               cpu: "100m"
