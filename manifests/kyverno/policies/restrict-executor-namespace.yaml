@@ -29,8 +29,9 @@ spec:
                 - self-heal-system
                 - platform
                 - kube-system
+                - monitoring  # kube-prometheus-stack + cdo-telemetry-forwarder (component CDO)
       validate:
         message: >
           Deployment mutation chỉ được phép trong:
-          tenant-a, tenant-b, kyverno, argocd, self-heal-system, platform, kube-system
+          tenant-a, tenant-b, kyverno, argocd, self-heal-system, platform, kube-system, monitoring
         deny: {}

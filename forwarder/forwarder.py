@@ -23,6 +23,7 @@ import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from alert_map import alerts_to_signals
+from scrub import scrub_signal
 
 REGION = os.environ.get("AWS_REGION", "us-east-1")
 QUEUE_URL = os.environ.get("CDO_TELEMETRY_QUEUE_URL", "")
@@ -37,7 +38,9 @@ except ImportError:
 
 
 def _send_signals(signals: list[dict]) -> int:
-    """Đẩy từng signal vào SQS. Trả số message gửi thành công."""
+    """Đẩy từng signal vào SQS. Trả số message gửi thành công.
+    PII-scrub trước khi gửi — telemetry không mang PII/secret thô (SOC2)."""
+    signals = [scrub_signal(s) for s in signals]
     if _sqs is None or not QUEUE_URL:
         # dev/offline: log ra stdout thay vì gửi
         for s in signals:

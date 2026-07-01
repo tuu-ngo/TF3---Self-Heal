@@ -20,7 +20,7 @@ spec:
       serviceAccountName: tf3-cdo-controller
       containers:
         - name: executor
-          image: 012619468490.dkr.ecr.us-east-1.amazonaws.com/cdo-executor:v7
+          image: 012619468490.dkr.ecr.us-east-1.amazonaws.com/cdo-executor:v8
           command: ["python", "main.py", "--watch"]
           env:
             - name: PYTHONUNBUFFERED

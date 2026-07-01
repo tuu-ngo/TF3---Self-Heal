@@ -5,7 +5,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY alert_map.py forwarder.py ./
+COPY alert_map.py forwarder.py scrub.py ./
 
 # Chạy non-root (đồng nhất securityContext manifest)
 RUN useradd -u 10001 -m appuser

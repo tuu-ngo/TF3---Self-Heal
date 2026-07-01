@@ -30,7 +30,7 @@ spec:
       serviceAccountName: cdo-telemetry-forwarder
       containers:
         - name: forwarder
-          image: 012619468490.dkr.ecr.us-east-1.amazonaws.com/cdo-forwarder:v1
+          image: 012619468490.dkr.ecr.us-east-1.amazonaws.com/cdo-forwarder:v3
           ports:
             - name: http
               containerPort: 8080

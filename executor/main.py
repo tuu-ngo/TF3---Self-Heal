@@ -226,8 +226,11 @@ class Executor:
         # Ưu tiên dense-window từ Prometheus (metric SỐ, hợp validator AI) — giống detect.
         # Watcher scrape phát signal rời có thể value-string → AI verify reject 422.
         dense = self.prom.build_window(first.namespace, deployment, self.cfg.tenant_id)
-        if dense:
-            return dense
+        # + service_error_rate → AI verifier ĐÁNH GIÁ THẬT (tên chứa "error"), tránh rubber-stamp
+        #   DONE. recovered → error_rate~0 → DONE; còn lỗi → cao → RETRY.
+        health = self.prom.build_health_signals(first.namespace, deployment, self.cfg.tenant_id)
+        if dense or health:
+            return dense + health
         if not self.k8s.enabled:
             return telemetry_window
         fresh = W.scrape_deployment_telemetry(self.k8s, first.namespace, deployment, self.cfg)
