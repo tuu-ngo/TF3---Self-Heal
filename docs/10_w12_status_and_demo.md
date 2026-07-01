@@ -1,6 +1,6 @@
 # 10 — Trạng thái hệ thống W12 + Demo (CDO-02) — tài liệu làm slide
 
-**Cập nhật:** 2026-07-01 · **Trạng thái:** LIVE trên EKS thật, E2E `auto_resolved` đã verify.
+**Cập nhật:** 2026-07-02 · **Trạng thái:** LIVE trên EKS thật, E2E `auto_resolved` đã verify.
 Doc này tổng hợp toàn bộ để team đọc + dựng slide. Nguồn sự thật: repo + cluster live.
 
 ---
@@ -11,7 +11,7 @@ Doc này tổng hợp toàn bộ để team đọc + dựng slide. Nguồn sự 
 |---|---|
 | AWS account / region | `012619468490` / `us-east-1` |
 | EKS cluster | `cdo-eks-cluster-dev` (K8s 1.30), **4 node t3.medium** |
-| AI Engine | **V4** (`ai-engine:v4`) — BOCPD + BARO RCA, real |
+| AI Engine | **V5** (`ai-engine:v5`) — BOCPD + BARO RCA, real (bản mới nhất từ AI team) |
 | Executor | **v8** (`cdo-executor:v8`) — dense-window Prometheus |
 | Forwarder | **v3** (`cdo-forwarder:v3`) — Alertmanager→SQS + PII-scrub |
 | Workload tenant-a | podinfo (`cdo-sample-api`) + **Online Boutique** (11 svc) + loadgen |
@@ -63,8 +63,8 @@ tenant pod lỗi
 | Req | Trạng thái |
 |---|---|
 | ≥3 pattern impl+tested + ≥2 designed | ✅ RESTART/PATCH/ROLLOUT (urgent, chạy thật) + SCALE/ROTATE (deferred, designed + playbook + diagram + ADR) |
-| Auto-resolve ≥60% / ≥10 scenario | ✅ `run_scenarios.py` 15 scenario, ~76.9% (deterministic, offline) |
-| Scenario sim ≥4h | 🟡 có `--duration 4h` (chạy khi cần) |
+| Auto-resolve ≥60% / ≥10 scenario | ✅ `run_scenarios.py` **14 scenario → 71.4%** (deterministic, offline, verified) |
+| Scenario sim ≥4h | ✅ `--duration 4h` **đang chạy** → `evidence/w12-scenario-sim/offline_4h_report.log` |
 | Zero unsafe action | ✅ safety-gate + RBAC + Kyverno; `sc11` cross-tenant deny, `sc12` DELETE_NS deny |
 | Audit tamper-evident ≥90d | ✅ S3 Object Lock Governance 90d + CloudWatch Logs Insights |
 | 5 safety sub-checkpoint | ✅ dry-run · blast-radius · verify · rollback · circuit-breaker |
@@ -77,10 +77,18 @@ ADR: **11** (`docs/08_adrs.md`) — phủ 5 chủ đề: decision-engine, audit-
 
 ## 5. AI + Data integration (bàn giao AI team)
 
-- **AI Engine V4** deploy live, 3 endpoint, profile CDO (`platform_profile_cdo.json`).
+- **AI Engine V5** deploy live (swap V1→…→V5 bằng bump image tag), 3 endpoint, profile CDO (`platform_profile_cdo.json`).
 - **Dense-window Prometheus** giải bài "engine cần chuỗi metric dày" (không phải signal rời).
 - **Dataset thật cho AI team** (`data-export/`): Online Boutique metric+log+nhãn nhất quán (khớp profile online-boutique) + podinfo có anomaly nhãn.
 - **Verify KHÔNG rubber-stamp**: executor gửi `service_error_rate` thật → verify DONE khi hồi phục, ESCALATE khi còn lỗi (đã chứng minh).
+
+### 5.1 Kết quả 2 luồng test (evidence trong `evidence/w12-scenario-sim/`)
+| Luồng | Kết quả |
+|---|---|
+| **Offline** (deterministic, mock AI) | 10/14 = **71.4% auto-resolve — PASS** (≥60%); `--duration 4h` đang chạy |
+| **Online chaos** (cluster thật, AI V5) | tenant-a: fault thật → **RESTART thật → auto_resolved** ✅ · **cooldown anti-flap** ✅ · **cross-tenant deny** ✅ |
+
+> Online tenant-b bị `denied_cross_tenant` (profile hardcode namespace=tenant-a — safety gate chặn đúng); **multi-tenant heal proven OFFLINE** (sc06/07/08 tenant-b auto_resolve).
 
 ---
 
@@ -107,7 +115,18 @@ ADR: **11** (`docs/08_adrs.md`) — phủ 5 chủ đề: decision-engine, audit-
 
 1. **Mở đầu**: `kubectl get nodes / pods -A` → "chạy thật trên EKS, không mock".
 2. **E2E self-heal**: trigger crash (`/panic`) + SQS message → xem executor log (loop) + `kubectl -n tenant-a get pods -w` (restart thật) → `auto_resolved`.
-3. **Safety + Audit**: `run_scenarios.py` (deny cross-tenant) + CloudWatch Logs Insights query `/cdo/dev/audit`.
+3. **Safety + Audit**:
+   - Safety: `run_scenarios.py` (thấy sc11 deny cross-tenant, sc12 deny unsafe).
+   - **Audit query** (CloudWatch Logs Insights, thay Athena — dùng `MSYS_NO_PATHCONV=1` trên Git Bash):
+     ```bash
+     export AWS_REGION=us-east-1 MSYS_NO_PATHCONV=1
+     QID=$(aws logs start-query --log-group-name "/cdo/dev/audit" \
+       --start-time $(($(date +%s)-7200)) --end-time $(date +%s) \
+       --query-string 'fields @timestamp, correlation_id, event, result, reason | sort @timestamp desc | limit 20' \
+       --query queryId --output text)
+     aws logs get-query-results --query-id "$QID" --query "results[].[field,value]" --output text
+     ```
+   - **Tamper-evident** (S3 Object Lock): `aws s3api get-object-retention --bucket cdo-audit-012619468490-dev --key audit/<tenant>/<corr_id>.json` → GOVERNANCE 90d; thử `delete-object` → AccessDenied.
 4. **Backup luôn xanh**: `run_scenarios.py --duration 600` (offline, ≥60%).
 5. **Pre-warm engine** trước demo (tránh cold-start).
 
