@@ -4,18 +4,18 @@ metadata:
   name: cdo-sample-api
   namespace: tenant-a
   labels:
-    app: cdo-sample-api
+    app: checkout-svc
     tenant_id: tenant-a
     selfheal.ai/service: checkout-svc
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: cdo-sample-api
+      app: checkout-svc
   template:
     metadata:
       labels:
-        app: cdo-sample-api
+        app: checkout-svc
         tenant_id: tenant-a
         selfheal.ai/service: checkout-svc
     spec:
@@ -59,11 +59,11 @@ metadata:
   name: cdo-sample-api
   namespace: tenant-a
   labels:
-    app: cdo-sample-api
+    app: checkout-svc
     tenant_id: tenant-a
 spec:
   selector:
-    app: cdo-sample-api
+    app: checkout-svc
   ports:
     - name: http
       port: 80
