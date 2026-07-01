@@ -22,7 +22,7 @@ Scope cost CDO-02 bao gồm: VPC/networking, EKS cluster, observability stack, a
 | Môi trường | Sandbox (1 environment) | Capstone scope |
 | Số tenant | 2 (`tenant-a`, `tenant-b`) | Hard requirement TF3 |
 | Thời gian chạy sandbox | ~10 ngày (W11 T6 → W12 T5) | Từ khi build chính thức đến code freeze |
-| Node group EKS | `t3.medium` × desired 2, min 2, max 5 | Theo evidence cluster thực tế |
+| Node group EKS | `t3.medium` × **desired 4**, min 2, max 5 | Scale 2→3→4 để chứa Online Boutique (11 svc) + engine (W12) |
 | Simulation window test | ≥ 4 giờ | Theo test eval requirement |
 | Đơn vị giá | USD, on-demand pricing us-east-1 | Không dùng Reserved/Savings Plans cho sandbox |
 
@@ -35,10 +35,11 @@ Scope cost CDO-02 bao gồm: VPC/networking, EKS cluster, observability stack, a
 | Item | Spec | Đơn giá | Ước tính/ngày | Ước tính 10 ngày |
 |---|---|---|---|---|
 | EKS Cluster fee | 1 cluster | $0.10/h | $2.40 | **$24.00** |
-| EC2 Node: t3.medium × 2 | 2 vCPU, 4 GB RAM mỗi node | $0.0416/h/node | $2.00 | **$20.00** |
-| EC2 Node: t3.medium (scale up max 5) | Chỉ scale khi có load test | $0.0416/h/node | ~$0.50 (trung bình) | **~$5.00** |
-| EBS gp3 root volume × 2 nodes | 20 GB/node | $0.08/GB/month | $0.10 | **$1.00** |
-| **Subtotal EKS** | | | **$5.00/ngày** | **~$50.00** |
+| EC2 Node: t3.medium × **4** | 2 vCPU, 4 GB RAM mỗi node | $0.0416/h/node | $4.00 | **$40.00** |
+| EBS gp3 root volume × 4 nodes | 20 GB/node | $0.08/GB/month | $0.20 | **$2.00** |
+| **Subtotal EKS** | | | **~$6.60/ngày** | **~$66.00** |
+
+> **Cập nhật W12**: scale lên **4 node** (từ 2) để chứa Online Boutique (11 microservice làm workload thật cho AI) + loadgen + engine. Chi phí EC2 node ~×2. Nếu chỉ demo self-heal (không cần OB), có thể về 3 node.
 
 ### 3.2 Amazon VPC & Networking
 
@@ -104,12 +105,14 @@ Scope cost CDO-02 bao gồm: VPC/networking, EKS cluster, observability stack, a
 | ECR Data Transfer (pull to EKS) | ~500 MB/deploy × ~5 deploys | $0.09/GB (after 1GB free) | $0.00 | **$0.22** |
 | **Subtotal ECR** | | | **$0.00** | **~$0.29** |
 
-### 3.8 Amazon Athena - Audit Query
+### 3.8 CloudWatch Logs Insights - Audit Query (thay Athena)
+
+> **Cập nhật W12**: chọn **CloudWatch Logs Insights** (group `/cdo/dev/audit`) làm lớp query audit thay vì Glue+Athena — rẻ + đơn giản hơn, không cần crawler/catalog. S3 Object Lock vẫn là source-of-truth tamper-evident (ADR-010).
 
 | Item | Spec | Đơn giá | Ước tính/ngày | Ước tính 10 ngày |
 |---|---|---|---|---|
-| Athena queries (audit trail query by correlation_id) | ~20 queries/ngày × 100MB scanned | $5.00/TB scanned | $0.01 | **$0.10** |
-| **Subtotal Athena** | | | **~$0.01/ngày** | **~$0.10** |
+| Logs Insights query (audit by correlation_id) | ~20 queries/ngày × ~50MB scanned | $0.005/GB scanned | ~$0.005 | **~$0.05** |
+| **Subtotal Audit query** | | | **~$0.005/ngày** | **~$0.05** |
 
 ### 3.9 AWS IAM / Secrets Manager
 

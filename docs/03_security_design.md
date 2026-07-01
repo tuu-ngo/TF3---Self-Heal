@@ -1,8 +1,14 @@
 # Security Design - Task Force 3 Self-Heal Engine - CDO-02
 
 **Doc owner:** CDO-02  
-**Trạng thái:** Ready for W11 Pack #1 review  
-**Cập nhật lần cuối:** 2026-06-26 (sync contract-new-4)  
+**Trạng thái:** Ready for W11 Pack #1 review · **W12: LIVE**  
+**Cập nhật lần cuối:** 2026-07-02  
+
+> **⚠ CẬP NHẬT W12 (delta):**
+> - **PII-scrub ĐÃ IMPLEMENT** (`forwarder/scrub.py`, 7 pattern: email/card/SSN/AWS-key/secret/token/password) — che PII/secret trước khi vào SQS/audit (SOC2).
+> - **3 lớp an toàn hoạt động LIVE**: Safety Gate 6-check (`safety_gate.py`) → RBAC per-tenant → Kyverno 3 ClusterPolicy Enforce. Verify cross-tenant deny đã chứng minh trên cluster thật.
+> - Audit **S3 Object Lock Governance 90d + CloudWatch Logs Insights** (chi tiết ADR-004/010).
+> - Trạng thái đầy đủ: [10_w12_status_and_demo.md](10_w12_status_and_demo.md).
 
 ## 1. Mục Tiêu Bảo Mật
 

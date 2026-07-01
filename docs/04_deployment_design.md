@@ -1,8 +1,14 @@
 # Deployment & CI/CD Design - Task Force 3 Self-Heal Engine - CDO-02
 
 **Doc owner:** CDO-02  
-**Trạng thái:** Ready for W11 Pack #1 review  
-**Last updated:** 2026-06-26 (sync contract-new-4 — abort criteria, probe config, rollout strategy, SA namespace conflict)  
+**Trạng thái:** Ready for W11 Pack #1 review · **W12: ĐÃ DEPLOY LIVE**  
+**Last updated:** 2026-07-02  
+
+> **⚠ CẬP NHẬT W12 (bản đang chạy live):**
+> - **AI Engine V5** (`ai-engine:v5`), **Executor v8** (dense-window Prometheus), **Forwarder v3** (PII-scrub) — trên EKS `cdo-eks-cluster-dev`, 4 node t3.medium, us-east-1, account 012619468490.
+> - Swap AI engine bằng cách bump image tag (V1→…→V5); manifest `manifests/ai-engine/deployment.yaml` (port 8080, profile CDO baked, HPA).
+> - CI 4 gate xanh (ruff, pytest ≥70%, tfsec, gitleaks).
+> - Deploy runbook thực tế: [09_deploy_runbook_live.md](09_deploy_runbook_live.md); trạng thái: [10_w12_status_and_demo.md](10_w12_status_and_demo.md).
 
 ## 1. Chiến lược IaC
 

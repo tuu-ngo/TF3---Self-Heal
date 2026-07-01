@@ -3,10 +3,49 @@
 **Dự án:** TF3 Self-Heal Agent AWS - CDO-02  
 **Report owner:** CDO-02  
 **Phạm vi:** CDO/CDO-02  
-**Ngày tạo:** 2026-06-29  
-**Trạng thái:** v2.0 - update theo thay đổi dự án hiện tại.  
+**Ngày tạo:** 2026-06-29 · **Cập nhật kết quả:** 2026-07-02  
+**Trạng thái:** v2.0 — **ĐÃ CHẠY LIVE**, kết quả thực tế ở §0.  
 
 > File này là tài liệu QA/Test của phía CDO-02. Chỉ kiểm tra CDO platform có tích hợp đúng với AI Engine image, enforce safety, execute/deny đúng, verify đúng và ghi evidence đầy đủ hay không.
+
+---
+
+## 0. KẾT QUẢ THỰC TẾ W12 (2026-07-02) — supersede các mục "planned/chờ" bên dưới
+
+Các mục §5-§6 bên dưới là **kế hoạch test**; phần này ghi **kết quả đã chạy thật**. Trạng thái tổng thể: **hệ thống LIVE trên EKS thật, AI Engine thật, E2E `auto_resolved` đã verify.**
+
+### 0.1 Môi trường thật (không còn mock/stub)
+| Thành phần | Bản chạy live |
+|---|---|
+| AI Engine | **V5** (`ai-engine:v5`) — BOCPD + BARO RCA (real, không mock) |
+| Executor | **v8** — dense-window Prometheus (`prom_source.py`) |
+| Forwarder | **v3** — Alertmanager→SQS + PII-scrub 7 pattern |
+| Cluster | EKS `cdo-eks-cluster-dev` (K8s 1.30), **4 node t3.medium**, us-east-1 |
+| Workload | podinfo (cdo-sample-api) + **Online Boutique** (11 svc) + loadgen |
+
+### 0.2 Kết quả 2 luồng test
+| Luồng | Kết quả | Evidence |
+|---|---|---|
+| **Offline scenario sim** (deterministic, mock AI, `run_scenarios.py`) | **10/14 = 71.4% auto-resolve — PASS** (target ≥60%); loop `--duration 4h` chạy được | `evidence/w12-scenario-sim/offline_4h_report.log` |
+| **Online chaos** (cluster thật, AI V5) | tenant-a: fault thật → **RESTART thật → auto_resolved** ✅; cooldown anti-flap ✅; cross-tenant deny ✅ | `evidence/w12-scenario-sim/online_chaos_report.log` |
+
+### 0.3 Đối chiếu 8 hard-requirement
+| # | Yêu cầu | Kết quả |
+|---|---|---|
+| 1 | ≥3 impl+tested + ≥2 designed | ✅ RESTART/PATCH/ROLLOUT (urgent, live) + SCALE/ROTATE (deferred, designed+ADR) |
+| 2 | Auto-resolve ≥60% / ≥10 scenario | ✅ **71.4% / 14** |
+| 3 | Scenario sim ≥4h | ✅ `--duration 4h` (đang chạy → report) |
+| 4 | Zero unsafe action | ✅ sc11 deny cross-tenant, sc12 deny unsafe; live cross-tenant deny |
+| 5 | Audit tamper-evident ≥90d | ✅ S3 Object Lock 90d + CloudWatch Logs Insights |
+| 6 | 5 safety sub-checkpoint | ✅ dry-run·blast-radius·verify·rollback(sc09)·circuit-breaker |
+| 7 | Multi-tenant ≥2 + RBAC | ✅ tenant-a/b (heal đa-tenant proven offline sc06-08) |
+| 8 | Escalation AI-gen + bundle | ✅ sc14 context bundle → pager |
+
+### 0.4 Quality gate quan trọng đã vá
+- **Verify KHÔNG rubber-stamp**: executor gửi `service_error_rate` thật → AI verify đánh giá (err=0→DONE, err=0.5→ESCALATE). Trước đó verify luôn DONE do post-telemetry chỉ có `container_resource_usage`.
+- **PII-scrub**: forwarder che email/card/SSN/AWS-key/token/password trước SQS/audit (SOC2).
+
+> Chi tiết trạng thái hiện tại đầy đủ: [10_w12_status_and_demo.md](10_w12_status_and_demo.md).
 
 ## 1. Mục Tiêu Test
 

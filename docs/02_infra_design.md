@@ -1,8 +1,14 @@
 # Infrastructure Design - Task Force 3 Self-Heal Engine - CDO-02
 
 **Doc owner:** CDO-02  
-**Trạng thái:** Ready for W11 Pack #1 review  
-**Cập nhật lần cuối:** 2026-06-26 (sync contract-new-4)  
+**Trạng thái:** Ready for W11 Pack #1 review · **W12: ĐÃ TRIỂN KHAI LIVE**  
+**Cập nhật lần cuối:** 2026-07-02  
+
+> **⚠ CẬP NHẬT W12 (delta so với design gốc):** hệ đã LIVE trên EKS thật.
+> - **4 node t3.medium** (scale 2→4 để chứa Online Boutique + engine).
+> - **Telemetry cho AI = dense-window Prometheus**: executor (`prom_source.py`) query `container_memory_working_set_bytes` (~240 điểm) đẩy `/v1/detect` — vì AI ML (BOCPD/BARO) cần chuỗi metric dày, không phải signal rời. Verify gửi thêm `service_error_rate` thật.
+> - AI Engine **thật V5** (không mock). Executor v8, Forwarder v3 (PII-scrub).
+> - Trạng thái đầy đủ: [10_w12_status_and_demo.md](10_w12_status_and_demo.md).
 
 ## 1. Mục tiêu kiến trúc
 
@@ -587,7 +593,7 @@ Evidence môi trường thật hiện tại:
 - Cluster is ACTIVE, Kubernetes version `1.30`, region `us-east-1`.
 - Kubeconfig was updated for the EKS context.
 - CDO temporarily enabled public endpoint access for the workstation IP only: `<WORKSTATION_IP>/32` (removed after W11).
-- Managed node group `cdo-default-ng` is ACTIVE with one `t3.medium` node.
+- Managed node group is ACTIVE with **4 `t3.medium` nodes** (W12: scale 1→2→3→4 để chứa Online Boutique + engine).
 - Namespace `tenant-a`, `tenant-b`, and `platform` were applied successfully.
 - Public app `podinfo` is running on EKS as `deployment/cdo-sample-api` in namespace `tenant-a`.
 - CDO captured runtime evidence for `/healthz`, `/readyz`, `/metrics`, pod logs, and a real `rollout restart`.
