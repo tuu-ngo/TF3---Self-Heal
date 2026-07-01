@@ -12,6 +12,28 @@ Dữ liệu trích từ hệ thống live (EKS `cdo-eks-cluster-dev`, us-east-1)
 | `online_boutique_logs.csv` | **LOG THẬT DÀY** `timestamp,service,level,message` — 10 service | `executor/tools/export_logs.py` |
 | `ground_truth.json` | **NHÃN**: `inject_time` + `suspected_fault_type` mỗi fault | Sinh bởi `executor/tools/inject_faults.sh` |
 
+## ⭐ DATASET ONLINE BOUTIQUE NHẤT QUÁN (metric + log + nhãn CÙNG APP) — dùng được trọn vẹn
+Bộ 3 file dưới đây **cùng trên Online Boutique** (khớp `platform_profile_online_boutique.json`),
+nên BARO correlate được metric↔log cùng service, và có nhãn để test detect:
+
+| File | Nội dung |
+|---|---|
+| `online_boutique_metrics.csv` | metric cadvisor **per-service** (mem/cpu/restarts) × 10 OB service |
+| `online_boutique_logs.csv` | ~12.6k dòng log OB (JSON severity+message) |
+| `ground_truth_ob.json` | **2 nhãn**: `frontend_cpu` (load spike), `checkoutservice_restart` (crash) + `inject_time` |
+
+**Anomaly khớp inject_time (verify):**
+| Fault | inject_time | Tín hiệu | Đo được |
+|---|---|---|---|
+| `frontend_cpu` | 1782910192 | `frontend_cpu`, `checkoutservice_cpu` | cpu **x4.0** (load spike loadgen ×4) |
+| `checkoutservice_restart` | 1782910497 | log ERROR/gap + checkout mem/cpu dip | crash pod checkoutservice |
+
+> **Lưu ý**: OB service dùng gRPC → KHÔNG expose http metric (delay/loss rỗng, đã bỏ). Tín hiệu OB
+> nằm ở **cpu/mem/restarts (cadvisor) + log**. Metrics mới ~50 dòng (OB vừa deploy) — chạy lại
+> `SERVICES="frontend@tenant-a,..." WINDOW_S=21600 python executor/tools/export_telemetry.py`
+> sau vài giờ để có history dày hơn (loadgen chạy 24/7 tích lũy).
+> Regenerate fault+nhãn: `bash executor/tools/inject_faults_ob.sh`.
+
 ## 📜 LOG THẬT từ Online Boutique (2026-07-01) — nguồn log chính cho AI team
 Đã deploy **Google Online Boutique** (11 microservice + Locust loadgenerator) vào `tenant-a` —
 app thật, log verbose, **khớp đúng `platform_profile_online_boutique.json`** của engine.

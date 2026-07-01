@@ -1,0 +1,5 @@
+{
+  "frontend_cpu_1": {"service_fault":"frontend_cpu","run_id":"1","inject_time":1782910192,"target_service":"frontend","suspected_fault_type":"cpu","matched_runbook":"ServiceStuckRestartRunbook"}
+,
+  "checkoutservice_restart_1": {"service_fault":"checkoutservice_restart","run_id":"1","inject_time":1782910497,"target_service":"checkoutservice","suspected_fault_type":"restart","matched_runbook":"ServiceStuckRestartRunbook"}
+}

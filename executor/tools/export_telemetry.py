@@ -27,15 +27,27 @@ PROM = os.getenv("PROM_URL", "http://kube-prometheus-stack-prometheus.monitoring
 WINDOW_S = int(os.getenv("WINDOW_S", "21600"))
 STEP_S = int(os.getenv("STEP_S", "30"))
 
-# (service, namespace) cần export
-SERVICES = [("cdo-sample-api", "tenant-a"), ("notification-service", "tenant-b")]
+# (service, namespace) cần export. Override qua env SERVICES="svc@ns,svc@ns".
+# Default = podinfo (cdo-sample-api). Cho Online Boutique: set SERVICES="frontend@tenant-a,...".
+def _services() -> list[tuple[str, str]]:
+    raw = os.getenv("SERVICES", "")
+    if raw:
+        return [(p.split("@")[0].strip(), p.split("@")[1].strip())
+                for p in raw.split(",") if "@" in p]
+    return [("cdo-sample-api", "tenant-a"), ("notification-service", "tenant-b")]
+
+
+SERVICES = _services()
 
 # metric_type → PromQL template (aggregate về 1 giá trị/service). {ns},{svc} sẽ format.
+# mem/cpu/restarts = cadvisor (mọi pod có); delay/loss = app http metric (rỗng nếu service
+# không expose/scrape — vd Online Boutique gRPC → cột tự bỏ).
 QUERIES = {
-    "mem":   'sum(container_memory_working_set_bytes{{namespace="{ns}",pod=~"{svc}-.*",container!="",image!=""}})',
-    "cpu":   'sum(rate(container_cpu_usage_seconds_total{{namespace="{ns}",pod=~"{svc}-.*",container!="",image!=""}}[1m]))',
-    "delay": 'histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{{namespace="{ns}"}}[5m]))) * 1000',
-    "loss":  'sum(rate(http_requests_total{{namespace="{ns}",status=~"5.."}}[5m])) / clamp_min(sum(rate(http_requests_total{{namespace="{ns}"}}[5m])), 1)',
+    "mem":      'sum(container_memory_working_set_bytes{{namespace="{ns}",pod=~"{svc}-.*",container!="",image!=""}})',
+    "cpu":      'sum(rate(container_cpu_usage_seconds_total{{namespace="{ns}",pod=~"{svc}-.*",container!="",image!=""}}[1m]))',
+    "restarts": 'sum(kube_pod_container_status_restarts_total{{namespace="{ns}",pod=~"{svc}-.*"}})',
+    "delay":    'histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{{namespace="{ns}",pod=~"{svc}-.*"}}[5m]))) * 1000',
+    "loss":     'sum(rate(http_requests_total{{namespace="{ns}",pod=~"{svc}-.*",status=~"5.."}}[5m])) / clamp_min(sum(rate(http_requests_total{{namespace="{ns}",pod=~"{svc}-.*"}}[5m])), 1)',
 }
 
 
