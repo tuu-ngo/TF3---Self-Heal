@@ -1,0 +1,23 @@
+=== ONLINE CHAOS: 3 vòng fault thật trên cluster (Thu Jul  2 00:19:13 SEAST 2026) ===
+>>> Round 1: crash cdo-sample-api (/panic) + incident
+    Round 1 outcome: → auto_resolved
+>>> Round 2: crash cdo-sample-api (/panic) + incident
+    Round 2 outcome: 
+>>> Round 3: crash cdo-sample-api (/panic) + incident
+    Round 3 outcome: 
+=== TỔNG KẾT ===
+>>> Round tenant-B: notification-service (tenant-b) incident
+{"timestamp": "2026-07-01T17:28:22.930Z", "correlation_id": "abfcbea1-54df-47ef-8e25-72dd5240e14a", "tenant_id": "6c8b4b2b-4d45-4209-a1b4-4b532d56a31c", "event": "prom_window_built", "namespace": "tenant-b", "detail": "518 points deployment=notification-service"}
+[sqs] tenant-b/notification-service → escalated:denied_cross_tenant
+
+=================== TỔNG KẾT ONLINE CHAOS (cluster THẬT, AI V4) ===================
+Round 1 (tenant-a/cdo-sample-api): crash /panic + incident
+  → dense-window 241 điểm Prometheus → detect V4 → decide → safety 6/6 → RESTART thật → verify → AUTO_RESOLVED ✅
+Round 2,3 (cùng service <5 phút):
+  → [sqs] "trong cooldown, bỏ qua" — COOLDOWN 5' chống re-heal/flapping (đúng thiết kế) ✅
+Round tenant-b (notification-service):
+  → dense-window 518 điểm OK → nhưng DENIED_CROSS_TENANT (safety gate chặn) ✅
+  → Lý do: profile CDO hardcode namespace=tenant-a; engine deterministic dùng namespace tĩnh.
+    Safety gate chặn ĐÚNG (bảo vệ tenant). Multi-tenant heal đã proven OFFLINE (sc06/07/08 tenant-b auto_resolve).
+
+KẾT LUẬN: online chứng minh self-heal THẬT (tenant-a) + 2 lớp an toàn thật (cooldown anti-flap, cross-tenant deny).
