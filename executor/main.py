@@ -221,6 +221,10 @@ class Executor:
         """
         first = decide.action_plan[0]
         _, _, deployment = first.target.partition("/")  # "deployment/<name>"
+        # Offline/mock (không Prometheus & không cluster) → không chờ, trả window gốc
+        # (Offline scenario test chạy nhanh, không sleep verify-window).
+        if not self.prom.enabled and not self.k8s.enabled:
+            return telemetry_window
         wait_s = min(decide.verify_policy.window_seconds, self.cfg.verify_max_wait_s)
         time.sleep(wait_s)
         # Ưu tiên dense-window từ Prometheus (metric SỐ, hợp validator AI) — giống detect.
