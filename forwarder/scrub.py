@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-# 7 pattern (khớp mức CDO-01): email · credit-card · SSN · AWS access-key ·
+# 7 pattern: email · credit-card · SSN · AWS access-key ·
 # AWS secret-key · bearer/JWT token · password/secret=... assignment.
 _PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"), "<EMAIL>"),

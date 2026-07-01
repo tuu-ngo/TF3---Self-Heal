@@ -92,40 +92,7 @@ ADR: **11** (`docs/08_adrs.md`) — phủ 5 chủ đề: decision-engine, audit-
 
 ---
 
-## 6. So sánh đối thủ CDO-01 (đã đọc full repo `truongcongtu318/capstone-phase2`, 2026-07-02)
-
-| Trục | CDO-02 (mình) | CDO-01 |
-|---|---|---|
-| **Deploy LIVE + E2E** | ✅ **EKS thật, `auto_resolved` proven** | ❌ **chưa deploy** — chính `SLO_validation_report.md` ghi E2E `PENDING_EKS_DEPLOY`, kubeconfig/cluster-name MISSING, recovery time TBD |
-| Kết quả đo được | ✅ auto-resolve 71.4%/14 scenario + online chaos | ❌ chỉ static/kustomize PASS, chưa chạy scenario nào |
-| Cost measured actual | ✅ đã đo (gross $19.28/30d, net $0 credits) | ❌ `$X` placeholder (05_cost §5) |
-| AI engine tích hợp | ✅ V5 thật (BOCPD/BARO), proven | ⚠ image `ai-engine-demo`, IRSA Bedrock MISSING → chưa proven |
-| Safety-gate độc lập (app) | ✅ 6-check trong executor | ❌ chỉ `_guard_ns` 1 check + circuit breaker |
-| Admission policy (Kyverno) | ✅ **4 ClusterPolicy** (replicas/mem/ns + **field-level mutation-allowlist**) | ✅ surgical (field-level, SA-scoped) — mình đã bắt kịp trục này |
-| PII scrub | ✅ 7 regex **+ key-name layer** (bắt secret sai format) | ✅ 7 regex + deep scrub_dict/key-name |
-| Deferred GitOps (Fast+Slow) | 🟡 **designed-only stub** (có chủ đích, xem §6.1) | ✅ **implement thật** (ArgoCD REST + CodeCommit) |
-| Autoscaling | 🟡 managed node group tĩnh | ✅ Karpenter |
-| Mạng | 🟡 NAT + endpoint (sandbox) | ✅ NAT-less + 12 VPC endpoint |
-| Audit mode | 🟡 S3 Object Lock GOVERNANCE + Logs Insights | ✅ Firehose→S3 COMPLIANCE + freeze-on-audit-fail |
-| ADR / docs | ✅ 11 ADR | 5 ADR (đủ min); vài doc dày hơn (02_infra 5k từ) |
-| Team | ~solo (PM+tech-lead) | 9 người, 3 sub-team |
-
-**Chốt:** thắng dứt điểm ở **bằng chứng thực thi** — thứ đối thủ **tự thừa nhận chưa có** trong SLO report của họ. Capstone chấm working-demo → lợi thế thuộc mình.
-
-### 6.1 Honest về gap — nơi CDO-01 nhỉnh hơn (chủ động nêu khi Q&A)
-
-Không giấu; nêu trước + giải thích trade-off có chủ đích:
-
-1. **Fast+Slow lane GitOps** — họ code thật (ArgoCD+CodeCommit), mình để **deferred = stub có chủ đích**. Lý do: hard-req chỉ cần "≥3 implement + ≥2 designed"; auto Git-ops trước demo là rủi ro (ADR-008, [w12-scope]). Ưu tiên urgent-path chạy thật > slow-path đẹp trên giấy nhưng chưa deploy như họ.
-2. **Kyverno field-level** — họ có từ đầu; mình **vừa bổ sung** `restrict-executor-mutations.yaml` (chặn executor đổi image/privileged/hostPath, chỉ cho replicas+resources) → đã bắt kịp.
-3. **PII key-name scrub** — họ có; mình **vừa thêm** lớp key-name vào `forwarder/scrub.py` (bắt secret sai format).
-4. **Network NAT-less + 12 endpoint / COMPLIANCE audit / Karpenter** — họ mạnh hơn về production-hardening. Mình chọn GOVERNANCE + NAT cho sandbox demo có chủ đích (rẻ, đơn giản, đủ tamper-evident 90d); production sẽ nâng COMPLIANCE — nêu rõ đây là lựa chọn scope, không phải thiếu sót năng lực.
-
-> Điểm mạnh nhất của họ (chiều sâu thiết kế + code sạch) **vô nghĩa nếu chưa chạy**: mọi chaos test của họ là `READY_FOR_CLUSTER_RUN`, chưa có một recovery-time thật nào. Mình có E2E `auto_resolved` đo được.
-
----
-
-## 7. Demo runbook (tóm tắt — chi tiết lệnh trong session)
+## 6. Demo runbook (tóm tắt — chi tiết lệnh trong session)
 
 1. **Mở đầu**: `kubectl get nodes / pods -A` → "chạy thật trên EKS, không mock".
 2. **E2E self-heal**: trigger crash (`/panic`) + SQS message → xem executor log (loop) + `kubectl -n tenant-a get pods -w` (restart thật) → `auto_resolved`.
@@ -148,7 +115,7 @@ Không giấu; nêu trước + giải thích trade-off có chủ đích:
 
 ---
 
-## 8. Điểm nhấn cho slide (3 câu)
-1. **Hệ thống CHẠY THẬT** trên EKS — self-heal E2E `auto_resolved` với AI engine thật (đối thủ còn mock).
+## 7. Điểm nhấn cho slide (3 câu)
+1. **Hệ thống CHẠY THẬT** trên EKS — self-heal E2E `auto_resolved` với AI engine thật.
 2. **AI quyết định, CDO thực thi an toàn** — safety-gate 6 lớp độc lập + Kyverno + audit bất biến (SOC2).
 3. **Executor tự kéo dense-window Prometheus** — giải đúng bài telemetry cho AI ML engine.

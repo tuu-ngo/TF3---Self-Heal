@@ -23,7 +23,6 @@ paths = [
   '''contract.*''',          # contract/, "contract - new 2/3/4"
   '''new-contract/.*''',
   '''evidence/.*''',
-  '''CDO-01/.*''',           # reference đội bạn
   '''(^|/)AI/.*''',          # reference team AI
   '''(?i)AI ?ENGINE.*''',    # source engine team AI (AI Engine V3/V4, AI ENGINE...) — code đội khác; .env.example key rỗng. Case-insensitive.
   '''capstone-phase2/.*''',  # template/reference gốc
