@@ -5,6 +5,24 @@
 # → webhook Alert Forwarder (ns monitoring) → SQS → Executor.
 # Grafana: dashboards cluster-health / OOM / restarts (datasource Prometheus).
 
+# metrics-server — cung cấp resource metrics (CPU/mem) cho HPA. AI Engine template
+# (manifests/ai-engine/deployment.yaml.template) dùng HorizontalPodAutoscaler v2 theo
+# CPU 70% / mem 80% → BẮT BUỘC có metrics-server, nếu không HPA báo target "<unknown>".
+# EKS không cài sẵn metrics-server (khác GKE). Pin version cho tái lập.
+resource "helm_release" "metrics_server" {
+  name             = "metrics-server"
+  repository       = "https://kubernetes-sigs.github.io/metrics-server/"
+  chart            = "metrics-server"
+  namespace        = "kube-system"
+  create_namespace = false
+  version          = "3.12.2"
+
+  values = [yamlencode({
+    # EKS managed node group: kubelet cert do CA cluster ký, metrics-server tin cậy được.
+    args = ["--kubelet-preferred-address-types=InternalIP"]
+  })]
+}
+
 resource "helm_release" "kube_prometheus_stack" {
   name             = "kube-prometheus-stack"
   repository       = "https://prometheus-community.github.io/helm-charts"
