@@ -583,7 +583,7 @@ evidence/w11-ai-contract-sync/
 
 Evidence môi trường thật hiện tại:
 
-- AWS account `938145531618` can describe EKS cluster `cdo-eks-cluster-dev`.
+- AWS account `012619468490` can describe EKS cluster `cdo-eks-cluster-dev`.
 - Cluster is ACTIVE, Kubernetes version `1.30`, region `us-east-1`.
 - Kubeconfig was updated for the EKS context.
 - CDO temporarily enabled public endpoint access for the workstation IP only: `<WORKSTATION_IP>/32` (removed after W11).

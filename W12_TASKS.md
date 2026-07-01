@@ -284,7 +284,7 @@
 
 **Bối cảnh:** Terraform module + manifests đã có khung; EKS từng ACTIVE ở W11. Việc tuần này là **dựng lại cluster, apply đủ infra, cung cấp ARN/endpoint cho team A**, và cài ArgoCD+Kyverno. Quy tắc state: 1 người apply 1 lúc (WORK_RULE §IV).
 
-> Chuẩn bị: `aws configure` (account 938145531618, region us-east-1) có quyền admin/poweruser.
+> Chuẩn bị: `aws configure` (account 012619468490, region us-east-1) có quyền admin/poweruser.
 
 ---
 
@@ -313,7 +313,7 @@
 2. Annotate ServiceAccount:
    ```bash
    kubectl annotate sa tf3-cdo-controller -n self-heal-system \
-     eks.amazonaws.com/role-arn=arn:aws:iam::938145531618:role/<executor-irsa> --overwrite
+     eks.amazonaws.com/role-arn=arn:aws:iam::012619468490:role/<executor-irsa> --overwrite
    ```
 ✅ Kiểm tra: chạy 1 pod test trong namespace đó, `aws sts get-caller-identity` trong pod trả về role IRSA (không phải node role).
 📎 Evidence: output get-caller-identity từ trong pod.

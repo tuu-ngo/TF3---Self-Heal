@@ -32,7 +32,7 @@ Red flags → ping mentor ngay, không chờ thêm:
 ---
 
 **CDO-02 members**
-- **Done:** Đọc 3 contract template, xác định dependency với AI team. Setup EKS cluster dev (`cdo-eks-cluster-dev`, account `938145531618`, us-east-1, K8s 1.30)
+- **Done:** Đọc 3 contract template, xác định dependency với AI team. Setup EKS cluster dev (`cdo-eks-cluster-dev`, account `012619468490`, us-east-1, K8s 1.30)
 - **Doing:** Draft `08_adrs.md`. Apply namespace `tenant-a`, `tenant-b`, `platform` — deploy sample workload `podinfo` vào `tenant-a`
 - **Blocker:** EKS public endpoint tạm bật cho workstation IP `14.224.236.94/32` — cần đóng lại sau khi xong setup
 

@@ -21,7 +21,7 @@
 | Auth tới AI | **Local Trust + K8s NetworkPolicy** (mTLS optional) — **KHÔNG SigV4** | ai-api §2 |
 | Action allow-list | `RESTART_DEPLOYMENT`, `PATCH_MEMORY_LIMIT`, `SCALE_REPLICAS`, `ROLLOUT_UNDO`, `ROTATE_SECRET` | ai-api §3.2 |
 | Region | `us-east-1` | client brief |
-| AWS account | `938145531618` | evidence W11 |
+| AWS account | `012619468490` | evidence W11 |
 | Audit storage | S3 Object Lock **GOVERNANCE** 90 ngày (KHÔNG Compliance) | trainer feedback W11 |
 | Idempotency lock | DynamoDB conditional write, TTL 24h, **CHỈ cho `/v1/decide`** | contract §4.A |
 

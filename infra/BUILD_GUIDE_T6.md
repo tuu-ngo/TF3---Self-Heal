@@ -7,7 +7,7 @@ Thứ tự chạy chính xác. Đừng skip bước nào — mỗi bước depen
 ## [W12 — B1 Infra Lead chạy 1 lần] Bước 0 — Bootstrap S3 state bucket
 
 > **Chỉ B1 chạy bước này.** Sau khi bucket tồn tại, team còn lại bỏ qua bước 0 và chạy thẳng từ "Bước 0b".
-> Bucket name: `cdo-tf-state-938145531618-dev` (account ID gắn vào để tránh conflict global).
+> Bucket name: `cdo-tf-state-012619468490-dev` (account ID gắn vào để tránh conflict global).
 
 ```bash
 cd infra/bootstrap
@@ -18,7 +18,7 @@ terraform output   # xác nhận tfstate_bucket_name
 
 Expected output:
 ```
-tfstate_bucket_name = "cdo-tf-state-938145531618-dev"
+tfstate_bucket_name = "cdo-tf-state-012619468490-dev"
 ```
 
 Sau đó migrate local state (nếu đã có `terraform.tfstate`) lên S3:
@@ -41,7 +41,7 @@ terraform init   # tự dùng S3 backend ngay, không cần migrate
 Kiểm tra state đã lên S3:
 
 ```bash
-aws s3 ls s3://cdo-tf-state-938145531618-dev/envs/dev/
+aws s3 ls s3://cdo-tf-state-012619468490-dev/envs/dev/
 # phải thấy terraform.tfstate
 ```
 
@@ -52,7 +52,7 @@ aws s3 ls s3://cdo-tf-state-938145531618-dev/envs/dev/
 > Chạy lệnh này **thay vì** bước 0. B1 đã tạo bucket rồi, bạn chỉ cần init.
 
 ```bash
-# Đảm bảo AWS credentials đúng (cùng account 938145531618)
+# Đảm bảo AWS credentials đúng (cùng account 012619468490)
 aws sts get-caller-identity
 
 cd infra/envs/dev
@@ -240,8 +240,8 @@ terraform output executor_role_arn
 
 ## Checklist cuối ngày
 
-- [ ] S3 state bucket `cdo-tf-state-938145531618-dev` tồn tại, versioning ON, public access blocked
-- [ ] `aws s3 ls s3://cdo-tf-state-938145531618-dev/envs/dev/` thấy `terraform.tfstate`
+- [ ] S3 state bucket `cdo-tf-state-012619468490-dev` tồn tại, versioning ON, public access blocked
+- [ ] `aws s3 ls s3://cdo-tf-state-012619468490-dev/envs/dev/` thấy `terraform.tfstate`
 - [ ] Tất cả thành viên `terraform init` thành công, không còn local state
 - [ ] `terraform apply` thành công, 0 errors
 - [ ] Kyverno pods RUNNING, 3 ClusterPolicies READY

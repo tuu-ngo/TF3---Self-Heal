@@ -330,7 +330,7 @@ Tất cả các điểm dưới đây đã được xác nhận trong 3 contract
 
 - Team chính thức là **CDO-02**.
 - CDO-02 đã chốt angle **K8s-heavy / Kubernetes Workflow Orchestration**.
-- Sandbox target là AWS/EKS; cluster `cdo-eks-cluster-dev` đã ACTIVE (K8s 1.30, us-east-1, account 938145531618). Evidence thật thu được T6 W11 — xem `evidence/w11-ai-contract-sync/EKS_RUNTIME_EVIDENCE_REPORT.md`.
+- Sandbox target là AWS/EKS; cluster `cdo-eks-cluster-dev` đã ACTIVE (K8s 1.30, us-east-1, account 012619468490). Evidence thật thu được T6 W11 — xem `evidence/w11-ai-contract-sync/EKS_RUNTIME_EVIDENCE_REPORT.md`.
 - Region mặc định theo client brief là `us-east-1`, trừ khi trainer/mentor yêu cầu khác.
 - Observability theo contract AI gồm CloudWatch Logs, Prometheus metrics endpoint và OpenTelemetry traces về Jaeger hoặc AWS X-Ray.
 - Audit storage: CDO-02 dùng S3 Object Lock **Governance Mode**, retention tối thiểu 90 ngày (theo trainer feedback W11). Deployment contract AI nói Compliance mode — CDO không theo vì Compliance không xóa được kể cả admin.
