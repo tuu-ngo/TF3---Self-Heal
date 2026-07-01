@@ -23,7 +23,7 @@ spec:
       containers:
         - name: executor
           # ⚠ Thay bằng ECR URI + tag commit: `terraform output ecr_executor_url` : <commit-sha>
-          image: 938145531618.dkr.ecr.us-east-1.amazonaws.com/cdo-executor:latest
+          image: 012619468490.dkr.ecr.us-east-1.amazonaws.com/cdo-executor:latest
           imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:

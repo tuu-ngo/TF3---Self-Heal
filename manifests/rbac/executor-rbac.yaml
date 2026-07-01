@@ -14,7 +14,7 @@ metadata:
     component: executor
   annotations:
     # IRSA: role do Terraform module iam/ tạo. Lấy ARN thật bằng `terraform output executor_role_arn`.
-    eks.amazonaws.com/role-arn: arn:aws:iam::938145531618:role/cdo-executor-irsa-cdo-eks-cluster-dev
+    eks.amazonaws.com/role-arn: arn:aws:iam::012619468490:role/cdo-executor-irsa-cdo-eks-cluster-dev
 
 # ===================== tenant-a =====================
 ---
