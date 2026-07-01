@@ -10,7 +10,7 @@ spec:
 
   source:
     # TODO: thay bằng Git repo thật của CDO-02
-    repoURL: https://github.com/<YOUR_ORG>/<YOUR_REPO>
+    repoURL: https://github.com/tuu-ngo/TF3---Self-Heal.git
     targetRevision: HEAD
     path: manifests/workloads/tenant-a
 

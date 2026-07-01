@@ -21,7 +21,3 @@ spec:
     - group: ""
       kind: LimitRange
 
-  syncPolicy:
-    automated:
-      prune: false
-      selfHeal: false

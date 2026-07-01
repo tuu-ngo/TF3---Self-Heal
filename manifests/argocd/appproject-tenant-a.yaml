@@ -23,7 +23,3 @@ spec:
       kind: LimitRange
 
   # selfHeal: false — executor tạo Git commit, ArgoCD sync nhưng không tự heal ngoài workflow
-  syncPolicy:
-    automated:
-      prune: false
-      selfHeal: false
