@@ -37,7 +37,7 @@ spec:
       serviceAccountName: ai-engine
       containers:
         - name: ai-engine
-          image: 012619468490.dkr.ecr.us-east-1.amazonaws.com/ai-engine:v4
+          image: 012619468490.dkr.ecr.us-east-1.amazonaws.com/ai-engine:v5
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
