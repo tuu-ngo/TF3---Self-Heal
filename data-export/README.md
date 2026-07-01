@@ -9,6 +9,21 @@ Dữ liệu trích từ hệ thống live (EKS `cdo-eks-cluster-dev`, us-east-1)
 |---|---|---|
 | `simple_metrics.csv` | Chuỗi metric dày: cột `time` + `<service>_<metric>` | Prometheus `query_range` (kube-prometheus-stack) |
 | `logs.csv` | `timestamp,service,level,message` | `kubectl logs --timestamps` các pod tenant |
+| `ground_truth.json` | **NHÃN**: `inject_time` + `suspected_fault_type` mỗi fault | Sinh bởi `executor/tools/inject_faults.sh` |
+
+## 🎯 Dataset có ANOMALY THẬT + nhãn (2026-07-01)
+Đã deploy `loadgen` (traffic nền ~12-25 req/s vào podinfo) + inject fault thật qua chaos endpoints.
+`ground_truth.json` ghi 3 fault có nhãn; anomaly **hiện rõ** trong `simple_metrics.csv`:
+
+| Fault | inject_time | Tín hiệu trong metric | Đo được |
+|---|---|---|---|
+| `delay` | 1782907830 | `cdo-sample-api_delay` (p95 ms) | 4.8ms → **1655ms (x347)** |
+| `loss` | 1782908134 | `cdo-sample-api_loss` (error rate) | 0 → **0.47 (47% 5xx)** |
+| `restart` | 1782908437 | pod restart (panic) | restart_count tăng |
+
+→ AI team dùng `inject_time` slice cửa sổ before/after để test detect (đúng cách `benchmark_e2e_push.py`).
+**Log vẫn thưa**: podinfo không log từng request/lỗi (bản chất app) → nếu cần log dày cho BARO/drain3,
+phải thay bằng app "nói nhiều" (xem mục Giới hạn LOG). Metric đã đủ dày + có nhãn để tune DETECT.
 
 ### `simple_metrics.csv` — cột hiện có
 `time`, và cho mỗi service (`cdo-sample-api` @tenant-a, `notification-service` @tenant-b):

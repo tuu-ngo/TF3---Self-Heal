@@ -1,0 +1,7 @@
+{
+  "cdo-sample-api_delay_1": {"service_fault":"cdo-sample-api_delay","run_id":"1","inject_time":1782907830,"target_service":"cdo-sample-api","suspected_fault_type":"delay","matched_runbook":"ServiceStuckRestartRunbook"}
+,
+  "cdo-sample-api_loss_1": {"service_fault":"cdo-sample-api_loss","run_id":"1","inject_time":1782908134,"target_service":"cdo-sample-api","suspected_fault_type":"loss","matched_runbook":"ServiceStuckRestartRunbook"}
+,
+  "cdo-sample-api_restart_1": {"service_fault":"cdo-sample-api_restart","run_id":"1","inject_time":1782908437,"target_service":"cdo-sample-api","suspected_fault_type":"restart","matched_runbook":"ServiceStuckRestartRunbook"}
+}

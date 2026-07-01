@@ -1,0 +1,40 @@
+# Load generator cho tenant-a — sinh traffic nền vào podinfo (checkout-svc) để có
+# metric/log THẬT có biến động (thay vì podinfo im lặng). Dùng cho dataset AI team + demo.
+# Fault injection (delay/status/panic) chạy riêng bằng script tools/inject_faults.sh.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loadgen
+  namespace: tenant-a
+  labels:
+    app: loadgen
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loadgen
+  template:
+    metadata:
+      labels:
+        app: loadgen
+    spec:
+      containers:
+        - name: loadgen
+          image: busybox:1.36
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              URL="http://checkout-svc.tenant-a.svc.cluster.local"
+              echo "[loadgen] baseline traffic → $URL"
+              # 4 vòng song song, mỗi vòng hit healthz + root ~3 req/s → ~12 req/s nền
+              for i in 1 2 3 4; do
+                ( while true; do
+                    wget -qO- --timeout=3 "$URL/healthz" >/dev/null 2>&1
+                    wget -qO- --timeout=3 "$URL/" >/dev/null 2>&1
+                    sleep 0.3
+                  done ) &
+              done
+              wait
+          resources:
+            requests: { cpu: "20m", memory: "16Mi" }
+            limits:   { cpu: "100m", memory: "64Mi" }
