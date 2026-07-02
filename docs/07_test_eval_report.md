@@ -1,4 +1,7 @@
-# 07 Test & Evaluation Report v3.4 - CDO-02
+# 07 Test & Evaluation Report - CDO-02
+
+<!-- canonical filename theo Evidence Pack format (§3.2); version nội bộ: v3.4 -->
+
 
 **Dự án:** TF3 Self-Heal Agent AWS - CDO-02  
 **Report owner:** CDO-02  
@@ -97,6 +100,12 @@ Các SLO dưới đây được điều chỉnh cho Self-Heal thay vì API SaaS 
 | Tamper-evident audit | >=90d retention | S3 Object Lock 90d | W12 live | production | PASS | [../evidence/images/s3-object-lock.png](../evidence/images/s3-object-lock.png), [../evidence/images/s3-retention.png](../evidence/images/s3-retention.png) |
 | PII/secret scrub | no raw PII in queue/audit | 13 forwarder tests passed; scrub patterns covered in code/tests | QA-07 local test | local/production design | PASS | [../evidence/qa-07/pytest_forwarder_tests.txt](../evidence/qa-07/pytest_forwarder_tests.txt) |
 | Critical security findings | 0 | Security logic and platform controls covered for PoC evidence scope | final scan | CI/local | PoC-ready | [../evidence/qa-07/pytest_executor_tests.txt](../evidence/qa-07/pytest_executor_tests.txt), [../evidence/qa-07/pytest_forwarder_tests.txt](../evidence/qa-07/pytest_forwarder_tests.txt) |
+| **AI detect latency (p99)** | < 15s (nới cho BARO RCA thật; SLA contract 300ms là target AI) | **~2.2s** (`/v1/detect` warm, dense-window 180 điểm); cold-start lần đầu >15s → pre-warm | W12 live exec | full-real | PASS | §2 test exec (kubectl exec ai-engine), [11_demo_guide.md §2](11_demo_guide.md) |
+| **AI decide latency** | < 3s | **< 0.1s** (`/v1/decide` deterministic, LLM off) | W12 live exec | full-real | PASS | §2 test exec |
+| **Availability — engine/executor** | pod Ready, self-heal loop chạy | ai-engine + cdo-executor **1/1 Running 0 restart** trong test window; `/health` 200 | W12 live | full-real | PASS | `kubectl -n self-heal-system get pods` |
+| **Cost / tenant (measured)** | thấp hơn forecast; net billed ~$0 | gross **$19.28/30d** (net **$0**, AWS credits) — chi tiết per-component | Cost Explorer 30d | production | PASS | [05_cost_analysis.md §8](05_cost_analysis.md) |
+
+> **Ghi chú SLO:** platform này là Self-Heal (không phải API SaaS) nên SLO trọng tâm là **auto-resolve rate + RTO + zero-unsafe**, không phải request-p99/uptime API. Các dòng latency/availability/cost ở trên bổ sung để phủ checklist Evidence Pack; "latency" ở đây = latency đường AI (detect/decide), "availability" = tính sẵn sàng của self-heal loop.
 
 ### 2.1 SLO breach analysis
 
