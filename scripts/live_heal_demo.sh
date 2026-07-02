@@ -1,29 +1,32 @@
 #!/usr/bin/env bash
 # =============================================================================
-# LIVE self-heal demo với AI engine THẬT — pattern dễ nhất: MEMORY SPIKE.
-# ĐÃ VERIFY 2026-07-02: detect(mem,0.95) -> PATCH_MEMORY_LIMIT -> execute success
-#                       -> verify DONE -> incident_closed: auto_resolved.
+# LIVE self-heal demo với AI engine THẬT — pattern MEMORY SPIKE.
+# ĐÃ VERIFY: detect(mem,0.95) -> PATCH_MEMORY_LIMIT -> execute success
+#            -> verify DONE -> incident_closed: auto_resolved.
 #
-# CƠ CHẾ: engine (BOCPD) chỉ ra `mem` khi có BASELINE phẳng (>=40 điểm ~10' @15s)
-# RỒI SPIKE. Deployment `mem-demo` (container `podinfo` để PATCH khớp) giữ 35MB
-# phẳng, CHỜ file /tmp/spike; khi bạn `spike` -> nhảy 635MB -> watcher/detect bắt
-# -> PATCH_MEMORY(podinfo) -> verify DONE -> auto_resolved.
+# CƠ CHẾ: engine (BOCPD) chỉ ra `mem` khi có BASELINE phẳng (>=40 điểm ~11'@15s)
+# RỒI SPIKE. Mỗi lần `deploy` tạo deployment TÊN DUY NHẤT (heal-demo-<time>) để
+# cửa sổ Prometheus SẠCH (không lẫn pod cũ -> tránh RCA rối -> tránh escalate).
+# Container tên `podinfo` để PATCH_MEMORY khớp.
 #
-# QUY TRÌNH DEMO (chạy bằng: bash scripts/live_heal_demo.sh <lệnh>):
-#   1) deploy   -> LÚC SETUP (đầu buổi). Baseline bắt đầu tích luỹ.
-#   2) status   -> chờ tới khi "Baseline đủ (>=40 điểm): YES" (~10-11 phút).
-#   3) spike    -> BẤM khi tới lượt demo: memory nhảy 635MB.
-#   4) watch    -> xem self-heal chạy live (watcher tự heal trong ~30-90s).
-#                  (KHÔNG cần bước này nếu chỉ muốn xem; watcher tự làm.)
-#   5) clean    -> dọn sau demo.
-# LƯU Ý: sau khi heal xong có cooldown 5' — đừng spike/trigger lại ngay.
+# QUY TRÌNH (chạy: bash scripts/live_heal_demo.sh <lệnh>):
+#   1) deploy  -> LÚC SETUP (đầu buổi). Baseline tích luỹ ~11'.
+#   2) status  -> chờ "Baseline đủ: YES".
+#   3) demo    -> BẤM LIVE: tự spike -> chờ spike vào Prometheus -> trigger
+#                 -> tail log tới khi auto_resolved. (chạy ~3-4 phút, tự chạy hết)
+#   4) clean   -> dọn sau demo.
 # =============================================================================
-set -euo pipefail
+set -uo pipefail
 export AWS_REGION=${AWS_REGION:-us-east-1}
-NS=tenant-a; DEP=mem-demo
+NS=tenant-a
+NAMEFILE=/tmp/.heal_demo_name
+QURL=https://sqs.us-east-1.amazonaws.com/012619468490/cdo-telemetry-dev
+TENANT=6c8b4b2b-4d45-4209-a1b4-4b532d56a31c
 PROM='http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090'
+name() { cat "$NAMEFILE" 2>/dev/null; }
 
 deploy() {
+  DEP="heal-demo-$(date +%H%M%S)"; echo "$DEP" > "$NAMEFILE"
   cat <<YAML | kubectl apply -f -
 apiVersion: apps/v1
 kind: Deployment
@@ -35,18 +38,18 @@ spec:
     metadata: {labels: {app: $DEP}}
     spec:
       containers:
-        - name: podinfo               # tên khớp PATCH_MEMORY (profile CDO)
+        - name: podinfo
           image: python:3.12-slim
-          command: ["python","-u","-c","import time,os\nbase=bytearray(35*1024*1024)\nprint('baseline 35MB — chờ /tmp/spike',flush=True)\nsp=None\nwhile True:\n if sp is None and os.path.exists('/tmp/spike'):\n  sp=bytearray(600*1024*1024); print('SPIKED 635MB',flush=True)\n time.sleep(3)"]
+          command: ["python","-u","-c","import time,os\nbase=bytearray(35*1024*1024)\nprint('baseline 35MB, cho /tmp/spike',flush=True)\nsp=None\nwhile True:\n if sp is None and os.path.exists('/tmp/spike'):\n  sp=bytearray(600*1024*1024); print('SPIKED 635MB',flush=True)\n time.sleep(3)"]
           resources:
             requests: {memory: 64Mi, cpu: 50m}
             limits: {memory: 1024Mi, cpu: 200m}
 YAML
-  echo ">> Deploy xong. CHỜ ~10-11 phút cho baseline (dùng: bash $0 status)."
+  echo ">> Deploy '$DEP'. CHỜ ~11 phút baseline. Kiểm tra: bash $0 status"
 }
 
-status() {
-  kubectl -n $NS get pods -l app=$DEP 2>/dev/null || true
+points() {
+  DEP=$(name)
   kubectl -n self-heal-system exec deploy/ai-engine -- python -c "
 import urllib.request,urllib.parse,json,time
 end=int(time.time());start=end-3600
@@ -54,32 +57,42 @@ q='container_memory_working_set_bytes{namespace=\"$NS\",pod=~\"$DEP-.*\",contain
 u='$PROM/api/v1/query_range?query='+urllib.parse.quote(q)+'&start='+str(start)+'&end='+str(end)+'&step=15'
 r=json.load(urllib.request.urlopen(u,timeout=15))['data']['result']
 v=r[0]['values'] if r else []; mb=[round(float(x[1])/1e6) for x in v]
-print('points=',len(mb),'| last=',mb[-1] if mb else '-','MB | max=',max(mb) if mb else '-','MB')
-print('Baseline đủ (>=40 điểm):','YES -> có thể spike' if len(mb)>=40 else 'CHUA -> chờ thêm')
-print('Đã spike (data >300MB):','YES' if (mb and max(mb)>300) else 'chưa')
-"
+print(len(mb), mb[-1] if mb else 0, max(mb) if mb else 0)
+" 2>/dev/null
 }
 
-spike() {
+status() {
+  DEP=$(name); [ -z "$DEP" ] && { echo "Chưa deploy — chạy: bash $0 deploy"; exit 1; }
+  kubectl -n $NS get pods -l app=$DEP 2>/dev/null
+  read -r n last mx <<< "$(points)"
+  echo "deployment=$DEP | points=${n:-0} | last=${last:-?}MB | max=${mx:-?}MB"
+  if [ "${n:-0}" -ge 40 ]; then echo "Baseline đủ (>=40): YES -> sẵn sàng: bash $0 demo"
+  else echo "Baseline đủ (>=40): CHUA (${n:-0}/40) -> chờ thêm ~$(( (40-${n:-0})*15/60 +1 )) phút"; fi
+}
+
+demo() {
+  DEP=$(name); [ -z "$DEP" ] && { echo "Chưa deploy."; exit 1; }
+  read -r n _ _ <<< "$(points)"
+  [ "${n:-0}" -lt 40 ] && { echo "⚠ baseline mới ${n:-0}/40 điểm — chờ thêm rồi hãy demo (bash $0 status)."; exit 1; }
   POD=$(kubectl -n $NS get pod -l app=$DEP -o jsonpath='{.items[0].metadata.name}')
-  [ -z "$POD" ] && { echo "Chưa có pod $DEP — chạy deploy trước."; exit 1; }
+  echo ">> [1/3] SPIKE memory 635MB trên $DEP ..."
   kubectl -n $NS exec "$POD" -- python -c "open('/tmp/spike','w').close()"
-  echo ">> ĐÃ SPIKE. Memory nhảy 635MB. Xem self-heal: bash $0 watch"
+  echo ">> [2/3] Chờ spike vào Prometheus (~150s)..."; sleep 150
+  echo ">> [3/3] Gửi trigger + theo dõi self-heal:"
+  MID=$(aws sqs send-message --queue-url "$QURL" --message-body \
+"{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"tenant_id\":\"$TENANT\",\"service\":\"$DEP\",\"signal_name\":\"container_resource_usage\",\"value\":635000000,\"labels\":{\"system\":\"K8S_NATIVE\",\"namespace\":\"$NS\",\"deployment\":\"$DEP\",\"container\":\"podinfo\"}}" \
+    --query MessageId --output text)
+  echo "   (SQS MessageId=$MID) — chờ executor drain ~20-40s. Ctrl-C để dừng."
+  kubectl -n self-heal-system logs -f --tail=2 deploy/cdo-executor \
+    | grep --line-buffered -iE "$DEP|detect_response|action_plan|safety_passed|execute_done|verify_done|incident_closed|escalat"
 }
 
-watch() {
-  echo ">> Theo dõi executor (Ctrl-C để dừng). Watcher sẽ bắt trong ~30-90s:"
-  kubectl -n self-heal-system logs -f --tail=3 deploy/cdo-executor \
-    | grep --line-buffered -iE "$DEP|prom_window_built|detect_response|action_plan|safety_passed|execute_done|verify_done|incident_closed|escalat"
-}
-
-clean() { kubectl -n $NS delete deploy $DEP --ignore-not-found; }
+clean() { DEP=$(name); [ -n "$DEP" ] && kubectl -n $NS delete deploy "$DEP" --ignore-not-found; rm -f "$NAMEFILE"; }
 
 case "${1:-}" in
   deploy) deploy ;;
   status) status ;;
-  spike)  spike ;;
-  watch)  watch ;;
+  demo)   demo ;;
   clean)  clean ;;
-  *) echo "dùng: bash $0 {deploy|status|spike|watch|clean}"; exit 1 ;;
+  *) echo "dùng: bash $0 {deploy|status|demo|clean}"; exit 1 ;;
 esac

@@ -37,54 +37,56 @@ Mở **2 cửa sổ Git Bash cạnh nhau** (+ 1 tab Grafana tùy chọn):
 
 | Cửa sổ | Lệnh | Hiển thị gì cho mentor |
 |---|---|---|
-| **A — LỚN (chính)** | `bash scripts/live_heal_demo.sh watch` | Log self-heal chạy realtime: detect → decide → safety → execute → verify → **auto_resolved** |
-| **B — nhỏ** | `kubectl -n tenant-a get pods -l app=mem-demo -w` | Pod thay đổi khi PATCH áp dụng (bằng chứng action thật) |
-| **C — Grafana (tùy chọn)** | xem §4 | Đồ thị memory: baseline phẳng → spike (trực quan) |
+| **A — LỚN (chính)** | `bash scripts/live_heal_demo.sh demo` | Tự spike → chờ → trigger → **log self-heal realtime**: detect → decide → safety → execute → verify → **auto_resolved** |
+| **B — nhỏ (tùy chọn)** | `kubectl -n tenant-a get pods -l app=$(cat /tmp/.heal_demo_name) -w` | Pod thay đổi khi PATCH áp dụng (bằng chứng action thật) |
+| **C — Grafana (tùy chọn)** | xem §4 | Đồ thị memory: baseline phẳng → spike |
 
-> Mở cửa sổ **A** (`watch`) TRƯỚC, rồi mới sang cửa sổ khác bấm `spike` — để mentor thấy log chạy ngay khi spike.
+> Cửa sổ **A** làm hết (spike + trigger + theo dõi). Cửa sổ B/C chỉ để minh hoạ thêm.
 
 ---
 
-## 2. Kịch bản 3 bước (bấm live + lời thuyết trình)
+## 2. Kịch bản demo — CHỈ 1 LỆNH (bấm live + lời thuyết trình)
 
-### Bước 1 — Cửa sổ A: bật theo dõi
+**Điều kiện:** đã `deploy` ở §0 và `status` báo `Baseline đủ: YES`.
+
+### Bấm 1 lệnh ở cửa sổ A:
 ```bash
-bash scripts/live_heal_demo.sh watch
+bash scripts/live_heal_demo.sh demo
 ```
-> **[NÓI]** "Đây là log của CDO executor. Em sẽ tạo một sự cố memory thật trên workload `mem-demo`, và hệ sẽ tự chẩn đoán + xử lý."
+Lệnh này tự chạy 3 pha (tổng ~3-4 phút, để nguyên cho nó chạy):
+```
+>> [1/3] SPIKE memory 635MB ...          ← gây sự cố memory thật
+>> [2/3] Chờ spike vào Prometheus (~150s)...   ← trong lúc này thuyết trình kiến trúc
+>> [3/3] Gửi trigger + theo dõi self-heal:      ← log bắt đầu chạy
+```
+> **[NÓI khi pha 1-2 chạy]** "Em vừa đẩy memory một workload lên ~635MB (mô phỏng memory leak) trên nền baseline phẳng 11 phút. Executor sẽ tự kéo chuỗi metric dày từ Prometheus và hỏi AI engine."
 
-### Bước 2 — Cửa sổ B (hoặc tab khác): gây spike
-```bash
-bash scripts/live_heal_demo.sh spike
+### Chuỗi self-heal hiện ở pha [3/3] (cùng một `correlation_id`):
 ```
-> **[NÓI]** "Vừa bơm memory workload nhảy vọt lên ~635MB (mô phỏng memory leak). Baseline phẳng 11 phút trước đó đã có sẵn — giờ engine sẽ thấy điểm bất thường."
-
-### Bước 3 — Nhìn cửa sổ A: self-heal chạy (~30–90s)
-Chuỗi event sẽ hiện (cùng một `correlation_id`):
-```
-[watcher] phát hiện OOM_KILL/CRASH_LOOP tại tenant-a/mem-demo
-prom_window_built ... points deployment=mem-demo          ← executor tự kéo dense-window Prometheus
-detect_response_received ... anomaly=true confidence=0.9 severity=0.95    ← AI DETECT
-action_plan_received PATCH_MEMORY_LIMIT (OOMPatchMemoryRunbook)           ← AI DECIDE
+prom_window_built ... points deployment=heal-demo-...       ← executor tự kéo dense-window Prometheus
+detect_response_received anomaly=true confidence=0.9 severity=0.95    ← AI DETECT
+action_plan_received PATCH_MEMORY_LIMIT (OOMPatchMemoryRunbook)       ← AI DECIDE
 safety_passed checks=pattern_type_valid,verify_policy_present,action_allow_list,pattern_routing,tenant_match,blast_radius   ← 6-CHECK
-rollback_snapshot_captured
-execute_done PATCH_MEMORY_LIMIT result=success target=deployment/mem-demo ← THỰC THI THẬT
-verify_done next_action=DONE success=true                                ← VERIFY (không rubber-stamp)
-incident_closed result=auto_resolved                                     ← ⭐ AUTO_RESOLVED
-[watcher] tenant-a/mem-demo → auto_resolved
+execute_done PATCH_MEMORY_LIMIT result=success                       ← THỰC THI THẬT trên K8s
+verify_done next_action=DONE success=true                           ← VERIFY (không rubber-stamp)
+incident_closed result=auto_resolved                                ← ⭐ AUTO_RESOLVED
+[...] heal-demo-... → auto_resolved
 ```
-> **[NÓI — chỉ vào từng dòng]** "Executor tự kéo chuỗi metric dày từ Prometheus → gọi AI `/v1/detect` (severity 0.95) → `/v1/decide` ra runbook PATCH_MEMORY → **qua 6 kiểm tra an toàn độc lập** → chụp snapshot rollback → **thực thi thật trên K8s** → `/v1/verify` xác nhận → **auto_resolved**. Toàn bộ tự động, AI quyết định nhưng CDO mới là bên thực thi sau kiểm soát."
+> **[NÓI — chỉ vào từng dòng]** "Executor kéo dense-window Prometheus → AI `/v1/detect` (severity 0.95) → `/v1/decide` ra runbook PATCH_MEMORY → **6 kiểm tra an toàn độc lập** → snapshot rollback → **thực thi thật trên K8s** → `/v1/verify` xác nhận hồi phục → **auto_resolved**. AI quyết định, nhưng CDO mới thực thi sau kiểm soát."
+
+Ấn **Ctrl-C** để dừng theo dõi khi đã thấy `auto_resolved`.
 
 ---
 
 ## 3. Xem KẾT QUẢ (chốt bằng chứng)
 
-**a) Kết quả loop** — dòng cuối ở cửa sổ A: `incident_closed result=auto_resolved`.
+**a) Kết quả loop** — dòng cuối: `incident_closed result=auto_resolved`.
 
-**b) Pod đã được xử lý** (cửa sổ B): sau `execute_done`, pod `mem-demo` được tạo lại (PATCH đổi resources → rolling update) → bằng chứng action đã áp dụng thật:
+**b) Pod đã được xử lý** (PATCH đổi resources → rolling update → pod mới = bằng chứng action thật):
 ```bash
-kubectl -n tenant-a get deploy mem-demo -o jsonpath='{.spec.template.spec.containers[0].resources}{"\n"}'
-# thấy limits.memory + requests.memory đã bị PATCH
+DEP=$(cat /tmp/.heal_demo_name)
+kubectl -n tenant-a get deploy $DEP -o jsonpath='{.spec.template.spec.containers[0].resources}{"\n"}'
+# thấy limits.memory + requests.memory đã bị PATCH (request 64Mi -> 256Mi)
 ```
 
 **c) Audit bất biến** — lấy `correlation_id` ở cửa sổ A rồi query (1 dòng mỗi lệnh):
@@ -105,24 +107,24 @@ kubectl -n monitoring port-forward svc/kube-prometheus-stack-grafana 3000:80
 # http://localhost:3000  (user: admin)
 kubectl -n monitoring get secret kube-prometheus-stack-grafana -o jsonpath='{.data.admin-password}' | base64 -d; echo
 ```
-Trong Grafana → Explore → query (thấy baseline phẳng rồi spike):
+Trong Grafana → Explore → query (thấy baseline phẳng rồi spike; thay tên theo `cat /tmp/.heal_demo_name`):
 ```
-container_memory_working_set_bytes{namespace="tenant-a",pod=~"mem-demo-.*"}
+container_memory_working_set_bytes{namespace="tenant-a",pod=~"heal-demo-.*"}
 ```
 > Đường phẳng ~35MB (baseline) rồi vọt lên ~635MB (spike) — minh hoạ đúng cái engine phát hiện.
 
 ---
 
-## 5. Dọn dẹp + QUY TẮC one-shot
+## 5. Dọn dẹp + QUY TẮC
 
 ```bash
-bash scripts/live_heal_demo.sh clean     # xóa mem-demo sau demo
+bash scripts/live_heal_demo.sh clean     # xóa deployment demo sau khi xong
 ```
 
-⚠️ **3 quy tắc bắt buộc:**
-1. **Chỉ `spike` 1 lần.** Sau heal có **cooldown 5 phút** — spike lần 2 → `escalate` (low confidence), không phải auto_resolved.
-2. **Đừng `deploy` lại** khi đang chờ baseline (reset về 0).
-3. Sau heal, PATCH tạo lại pod → baseline reset → nếu muốn demo lại phải chờ ~11 phút baseline mới.
+⚠️ **Quy tắc:**
+1. **Chỉ chạy `demo` 1 lần / 1 lần deploy.** Sau heal có **cooldown 5 phút** — chạy `demo` lại ngay → `escalate` (low confidence).
+2. **Muốn demo LẠI**: `clean` → `deploy` (tên MỚI, cửa sổ SẠCH) → chờ ~11' baseline → `demo`. Mỗi `deploy` tạo tên duy nhất nên KHÔNG bị lẫn data pod cũ.
+3. Đừng `deploy` chồng khi đang chờ baseline (tên mới ⇒ baseline mới đếm lại từ 0).
 
 ---
 
