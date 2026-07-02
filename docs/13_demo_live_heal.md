@@ -1,9 +1,21 @@
-# 13 — Demo LIVE Self-Heal `auto_resolved` (chiếu khi thuyết trình)
+# 13 — Demo LIVE Self-Heal (chiếu khi thuyết trình)
 
-**Cập nhật:** 2026-07-02 · **Đã VERIFY bằng log thật.** Dùng script [`scripts/live_heal_demo.sh`](../scripts/live_heal_demo.sh).
-Đây là kịch bản để **bấm live trước mentor**: gây memory-spike có kiểm soát → AI engine thật chẩn đoán → executor PATCH_MEMORY an toàn → verify → **`auto_resolved`**.
+**Cập nhật:** 2026-07-02 · **Shell:** Git Bash, chạy `bash scripts/...` (không `./`), `cd` vào repo trước.
 
-> **Shell:** mở **Git Bash** (Windows) và chạy bằng `bash scripts/...` (KHÔNG dùng `./`). `cd` vào thư mục repo trước.
+> ## ⭐ ĐỌC TRƯỚC — chọn demo theo ĐỘ TIN CẬY
+> Live executor→engine `auto_resolved` **đã chạy được thật** (log bằng chứng: [`evidence/w12-scenario-sim/live_auto_resolved_20260702.log`](../evidence/w12-scenario-sim/live_auto_resolved_20260702.log)) **NHƯNG không tái tạo 100% theo yêu cầu** — engine ML nhạy cảm hình dạng memory (OOM→conf 0.9→auto_resolved; giữ-cao→conf 0.5→escalate; crashloop→no_anomaly). Đây là hành vi ĐÚNG (không báo động bừa) nhưng khó canh live.
+>
+> **=> Thứ tự demo khuyến nghị (từ chắc chắn nhất):**
+> | # | Lệnh | Chứng minh | Tin cậy |
+> |---|---|---|---|
+> | **1** | `kubectl -n self-heal-system exec -i deploy/ai-engine -- python - < scripts/demo_ai_smoke.py` | **AI engine THẬT** detect 0.95 → decide → verify DONE/ESCALATE | ✅ 100% |
+> | **2** | `cd executor && python run_scenarios.py` | Auto-resolve **71.4%** | ✅ 100% |
+> | **3** | `bash scripts/live_heal_demo.sh demo` (§dưới) | Executor E2E `auto_resolved` | 🟡 ~50% — dùng làm "đinh" nếu may, hoặc nói "data-sensitive + có log evidence" |
+> | 4 | crashloop OB (guide 12) | Escalate an toàn (defense-in-depth) | ✅ |
+>
+> **Lời thoại nếu #3 ra escalate/no_anomaly:** "Engine ML chỉ hành động khi tín hiệu đủ mạnh — data phẳng/mơ hồ thì nó **escalate cho người** thay vì làm bừa. Đây là zero-unsafe. Bằng chứng auto_resolved thật có trong log evidence." → biến "flaky" thành điểm mạnh an toàn.
+
+Script `live_heal_demo.sh` dưới đây: gây memory-spike có kiểm soát → engine chẩn đoán → executor PATCH_MEMORY → verify. Chạy được, nhưng đọc cảnh báo tin cậy ở trên.
 
 > **Vì sao pattern này:** engine ML (BOCPD) chỉ báo `mem` khi có **baseline phẳng ≥40 điểm (~11 phút) RỒI spike**. Workload thật phẳng → không tự fire (đúng, không false-positive). Script tạo `mem-demo` (container tên `podinfo` để `PATCH_MEMORY` khớp) giữ baseline rồi spike theo lệnh → heal sạch.
 

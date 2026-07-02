@@ -1,0 +1,10 @@
+# Live self-heal auto_resolved — bằng chứng THẬT (EKS cdo-eks-cluster-dev, 2026-07-02 05:37Z)
+# Full loop: detect(0.9/0.95) -> decide PATCH_MEMORY -> safety 6/6 -> execute success -> verify DONE -> auto_resolved
+{"timestamp": "2026-07-02T05:37:18.110Z", "correlation_id": "9004a1cd-5392-47a9-9e36-d5ec985abf6c", "tenant_id": "6c8b4b2b-4d45-4209-a1b4-4b532d56a31c", "event": "prom_window_built", "namespace": "tenant-a", "detail": "339 points deployment=mem-demo"}
+{"timestamp": "2026-07-02T05:37:21.830Z", "correlation_id": "9004a1cd-5392-47a9-9e36-d5ec985abf6c", "tenant_id": "6c8b4b2b-4d45-4209-a1b4-4b532d56a31c", "event": "detect_response_received", "result": "ok", "anomaly": true, "confidence": 0.9, "severity": 0.95}
+{"timestamp": "2026-07-02T05:37:21.878Z", "correlation_id": "9004a1cd-5392-47a9-9e36-d5ec985abf6c", "tenant_id": "6c8b4b2b-4d45-4209-a1b4-4b532d56a31c", "event": "action_plan_received", "action_type": "PATCH_MEMORY_LIMIT", "pattern_type": "urgent", "runbook": "OOMPatchMemoryRunbook", "cost_cap_exceeded": false}
+{"timestamp": "2026-07-02T05:37:21.878Z", "correlation_id": "9004a1cd-5392-47a9-9e36-d5ec985abf6c", "tenant_id": "6c8b4b2b-4d45-4209-a1b4-4b532d56a31c", "event": "safety_passed", "decision": "allow", "checks": "pattern_type_valid,verify_policy_present,action_allow_list,pattern_routing,tenant_match,blast_radius"}
+{"timestamp": "2026-07-02T05:37:21.922Z", "correlation_id": "9004a1cd-5392-47a9-9e36-d5ec985abf6c", "tenant_id": "6c8b4b2b-4d45-4209-a1b4-4b532d56a31c", "event": "execute_done", "namespace": "tenant-a", "action_type": "PATCH_MEMORY_LIMIT", "result": "success", "target": "deployment/mem-demo"}
+{"timestamp": "2026-07-02T05:39:21.954Z", "correlation_id": "9004a1cd-5392-47a9-9e36-d5ec985abf6c", "tenant_id": "6c8b4b2b-4d45-4209-a1b4-4b532d56a31c", "event": "verify_done", "result": "ok", "next_action": "DONE", "success": true, "regression": false}
+{"timestamp": "2026-07-02T05:39:21.954Z", "correlation_id": "9004a1cd-5392-47a9-9e36-d5ec985abf6c", "tenant_id": "6c8b4b2b-4d45-4209-a1b4-4b532d56a31c", "event": "incident_closed", "result": "auto_resolved"}
+[watcher] tenant-a/mem-demo -> auto_resolved
