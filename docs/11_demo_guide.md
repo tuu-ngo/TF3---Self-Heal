@@ -39,9 +39,8 @@ kubectl -n self-heal-system get pods      # ai-engine + cdo-executor 1/1
 kubectl -n monitoring       get pods      # prometheus/grafana/alertmanager/forwarder
 kubectl -n tenant-a         get pods      # cdo-sample-api + Online Boutique
 
-# 0.3 PRE-WARM AI engine (tránh cold-start chậm >15s lúc demo) — gọi 1 detect nháp
-kubectl -n self-heal-system exec deploy/ai-engine -- \
-  python -c "import urllib.request;print(urllib.request.urlopen('http://127.0.0.1:8080/health',timeout=5).read().decode())"
+# 0.3 PRE-WARM AI engine (tránh cold-start >15s) — 1 DÒNG, KHÔNG xuống dòng
+kubectl -n self-heal-system exec deploy/ai-engine -- python -c "import urllib.request;print(urllib.request.urlopen('http://127.0.0.1:8080/health',timeout=5).read().decode())"
 ```
 
 > ⚠ Nếu pod chưa Running: `kubectl -n <ns> describe pod <pod>` xem lý do. Nếu vừa scale/restart, chờ ~1-2 phút.
@@ -107,8 +106,7 @@ Chứng minh cả đường dây: **trigger → SQS → executor drain → dense
 ```bash
 # Bật T1 (executor log) + T2 (pod watch) trước.
 # Tạo OOM thật trên tenant-a để Prometheus ghi nhận anomaly:
-kubectl run oom-test -n tenant-a --image=polinux/stress --restart=Never -- \
-  --vm 1 --vm-bytes 250M --vm-hang 0
+kubectl run oom-test -n tenant-a --image=polinux/stress --restart=Never -- --vm 1 --vm-bytes 250M --vm-hang 0
 
 # Alertmanager fire PodOOMKilled -> forwarder -> SQS -> executor tự xử.
 # Xem T1: alert_received -> detect_called -> ... -> execute_done -> verify_done -> incident_closed
@@ -157,12 +155,10 @@ kubectl get clusterpolicy
 
 # 4.2 CHỨNG MINH Kyverno chặn field nguy hiểm (impersonate SA executor, server dry-run — KHÔNG đổi gì thật)
 SA=system:serviceaccount:self-heal-system:tf3-cdo-controller
-# (a) patch memory hợp lệ -> ALLOW
-kubectl -n tenant-a set resources deploy/cdo-sample-api --limits=memory=1024Mi \
-  --as=$SA --dry-run=server
+# (a) patch memory hợp lệ -> ALLOW  (mỗi lệnh 1 dòng)
+kubectl -n tenant-a set resources deploy/cdo-sample-api --limits=memory=1024Mi --as=$SA --dry-run=server
 # (b) đổi image (self-heal KHÔNG được phép) -> REJECT bởi restrict-executor-mutations
-kubectl -n tenant-a set image deploy/cdo-sample-api podinfo=nginx:latest \
-  --as=$SA --dry-run=server
+kubectl -n tenant-a set image deploy/cdo-sample-api podinfo=nginx:latest --as=$SA --dry-run=server
 
 # 4.3 RBAC least-privilege per-tenant (executor KHÔNG có ClusterRole)
 kubectl auth can-i patch deployments -n tenant-a --as=$SA    # yes
@@ -202,9 +198,8 @@ Chỉ ra trong output: `sc11` → `denied_cross_tenant`, `sc12` → `denied_acti
 # Grafana (dashboard cluster/pod/self-heal)
 kubectl -n monitoring port-forward svc/kube-prometheus-stack-grafana 3000:80
 #   mở http://localhost:3000 — user: admin
-# Mật khẩu admin (Git Bash):
-kubectl -n monitoring get secret kube-prometheus-stack-grafana \
-  -o jsonpath='{.data.admin-password}' | base64 -d; echo
+# Mật khẩu admin (Git Bash) — 1 dòng:
+kubectl -n monitoring get secret kube-prometheus-stack-grafana -o jsonpath='{.data.admin-password}' | base64 -d; echo
 
 # Prometheus (query metric thô, xem dense-window)
 kubectl -n monitoring port-forward svc/kube-prometheus-stack-prometheus 9090:9090
@@ -230,22 +225,15 @@ Sau khi có incident (§3), lấy `correlation_id` từ executor log rồi:
 ```bash
 export AWS_REGION=us-east-1 MSYS_NO_PATHCONV=1     # MSYS_NO_PATHCONV: tránh Git Bash mangle path /cdo/...
 
-# 7.1 Query audit qua CloudWatch Logs Insights
-QID=$(aws logs start-query --log-group-name "/cdo/dev/audit" \
-  --start-time $(($(date +%s)-7200)) --end-time $(date +%s) \
-  --query-string 'fields @timestamp, correlation_id, event, result, reason | sort @timestamp desc | limit 25' \
-  --query queryId --output text)
+# 7.1 Query audit qua CloudWatch Logs Insights (mỗi lệnh 1 dòng, KHÔNG xuống dòng)
+QID=$(aws logs start-query --log-group-name "/cdo/dev/audit" --start-time $(($(date +%s)-7200)) --end-time $(date +%s) --query-string 'fields @timestamp, correlation_id, event, result, reason | sort @timestamp desc | limit 25' --query queryId --output text)
 sleep 3
 aws logs get-query-results --query-id "$QID" --query 'results[].[field,value]' --output text
 
-# 7.2 Bằng chứng bất biến — S3 Object Lock GOVERNANCE 90 ngày
+# 7.2 Bằng chứng bất biến — S3 Object Lock GOVERNANCE 90 ngày (thay <correlation_id> bằng id thật)
 aws s3 ls s3://cdo-audit-012619468490-dev/audit/tenant-a/ | tail
-#   với 1 object cụ thể:
-aws s3api get-object-retention --bucket cdo-audit-012619468490-dev \
-  --key audit/tenant-a/<correlation_id>.json          # -> Mode=GOVERNANCE, RetainUntil= +90d
-#   thử xóa -> AccessDenied (không bypass được):
-aws s3api delete-object --bucket cdo-audit-012619468490-dev \
-  --key audit/tenant-a/<correlation_id>.json           # -> AccessDenied
+aws s3api get-object-retention --bucket cdo-audit-012619468490-dev --key audit/tenant-a/<correlation_id>.json   # -> Mode=GOVERNANCE, RetainUntil= +90d
+aws s3api delete-object --bucket cdo-audit-012619468490-dev --key audit/tenant-a/<correlation_id>.json          # -> AccessDenied
 ```
 
 **(PowerShell) — tương đương §7.1 (khác ở tính epoch time, không có `date +%s`/`$(( ))`):**
@@ -276,6 +264,7 @@ aws logs get-query-results --query-id $QID --query "results[].[field,value]" --o
 | Triệu chứng | Xử lý |
 |---|---|
 | Lệnh báo lỗi cú pháp (`<<`, `export`, `base64`, `The token '&&'...`, `not recognized`) | Bạn đang ở **PowerShell/CMD**. Mở **Git Bash** rồi chạy, hoặc dùng block **(PowerShell)** kèm theo. |
+| `exec: " python": executable file not found` (có dấu cách trước tên) | Paste bị dính dòng ở dấu `\`. Các lệnh trong guide đã để **1 dòng** — copy CẢ dòng, đừng chèn xuống dòng giữa lệnh. |
 | Detect chậm/`ai_unavailable` lần đầu | Cold-start — đã pre-warm ở §0.3; chạy lại 1 lần là ấm (~2s). |
 | E2E ra `no_anomaly` | Data phẳng (pod khỏe) — đúng behavior. Dùng §3 Cách A (inject OOM) hoặc §5 backup. |
 | Không thấy heal sau trigger SQS | Kiểm tra cooldown 5 phút (`heal_cooldown_s=300`) — cùng service vừa heal sẽ bị chặn lặp. Đổi service/chờ. |

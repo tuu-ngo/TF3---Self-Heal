@@ -35,9 +35,8 @@ aws eks update-kubeconfig --name cdo-eks-cluster-dev --region us-east-1
 kubectl -n tenant-a get deploy
 kubectl -n tenant-a get pods -o wide | grep -vE 'cdo-sample|loadgen'
 
-# Pre-warm engine
-kubectl -n self-heal-system exec deploy/ai-engine -- \
-  python -c "import urllib.request;print(urllib.request.urlopen('http://127.0.0.1:8080/health',timeout=5).read().decode())"
+# Pre-warm engine (1 dòng — KHÔNG xuống dòng)
+kubectl -n self-heal-system exec deploy/ai-engine -- python -c "import urllib.request;print(urllib.request.urlopen('http://127.0.0.1:8080/health',timeout=5).read().decode())"
 ```
 
 **Chọn service mục tiêu** (dùng `emailservice` cho ví dụ — không nằm trên đường checkout chính nên gãy tạm cũng ít ảnh hưởng UI):
@@ -61,8 +60,7 @@ Gây **CrashLoop** trên service OB (không phải OOM) → detect phân loại 
 
 ### Bước 1 — gây crashloop (ghi đè command để container thoát ngay)
 ```bash
-kubectl -n tenant-a patch deploy $SVC --type=strategic -p \
-  '{"spec":{"template":{"spec":{"containers":[{"name":"server","command":["sh","-c","echo boom; exit 1"]}]}}}}'
+kubectl -n tenant-a patch deploy $SVC --type=strategic -p '{"spec":{"template":{"spec":{"containers":[{"name":"server","command":["sh","-c","echo boom; exit 1"]}]}}}}'
 # Pod sẽ vào CrashLoopBackOff (RESTARTS tăng dần) — xem T2.
 ```
 
@@ -81,8 +79,7 @@ alert_received → prom_window_built (…points) → detect_called → detect_re
 
 ### Bước 3 — KHÔI PHỤC service (bắt buộc, gỡ command lỗi)
 ```bash
-kubectl -n tenant-a patch deploy $SVC --type=json -p \
-  '[{"op":"remove","path":"/spec/template/spec/containers/0/command"}]'
+kubectl -n tenant-a patch deploy $SVC --type=json -p '[{"op":"remove","path":"/spec/template/spec/containers/0/command"}]'
 kubectl -n tenant-a rollout status deploy/$SVC     # chờ Running lại
 ```
 
@@ -157,18 +154,14 @@ Query hữu ích tại http://localhost:9090 (đổi `emailservice` theo `$SVC`)
 | Pod ready (thấy hồi phục) | `kube_pod_status_ready{namespace="tenant-a",pod=~"emailservice.*"}` |
 
 ```bash
-# Theo dõi sự kiện K8s realtime của service (OOMKilled / BackOff / Killing)
-kubectl -n tenant-a get events --watch --field-selector involvedObject.name=$SVC 2>/dev/null || \
+# Theo dõi sự kiện K8s realtime của service (OOMKilled / BackOff / Killing) — mỗi lệnh 1 dòng
 kubectl -n tenant-a get events -w | grep -i "$SVC"
 ```
 
-### Audit sau demo (lấy correlation_id trong T1 rồi):
+### Audit sau demo (lấy correlation_id trong T1 rồi) — mỗi lệnh 1 dòng, KHÔNG xuống dòng:
 ```bash
 export AWS_REGION=us-east-1 MSYS_NO_PATHCONV=1
-QID=$(aws logs start-query --log-group-name "/cdo/dev/audit" \
-  --start-time $(($(date +%s)-3600)) --end-time $(date +%s) \
-  --query-string 'fields @timestamp, correlation_id, event, result, reason | filter namespace="tenant-a" | sort @timestamp desc | limit 30' \
-  --query queryId --output text)
+QID=$(aws logs start-query --log-group-name "/cdo/dev/audit" --start-time $(($(date +%s)-3600)) --end-time $(date +%s) --query-string 'fields @timestamp, correlation_id, event, result, reason | filter namespace="tenant-a" | sort @timestamp desc | limit 30' --query queryId --output text)
 sleep 3
 aws logs get-query-results --query-id "$QID" --query 'results[].[field,value]' --output text
 ```
@@ -192,6 +185,7 @@ kubectl -n tenant-a get pods -l app=$SVC          # phải Running 1/1
 | Triệu chứng | Xử lý |
 |---|---|
 | Lệnh lỗi cú pháp (`<<`, `export`…) | Đang ở PowerShell → mở **Git Bash** hoặc dùng block `(PowerShell)`. |
+| `exec: " python": executable file not found` | Paste dính dòng ở `\`. Lệnh trong guide đã để **1 dòng** — copy nguyên dòng, không xuống dòng giữa lệnh. |
 | Không thấy self-heal sau khi gây lỗi | Chờ ≥30s (watcher poll) + đủ 3 restart; hoặc service đang cooldown 5 phút (`heal_cooldown_s`). |
 | Executor ra `PATCH_MEMORY` rồi Kyverno chặn (mong RESTART) | Đó là case §3 (fault=mem). Muốn RESTART → dùng §2 (crashloop không do memory). |
 | OB service không xanh lại | Chạy §6 (gỡ command + trả memory). Nếu vẫn lỗi: `kubectl -n tenant-a rollout undo deploy/$SVC`. |
