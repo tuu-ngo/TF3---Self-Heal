@@ -2,9 +2,9 @@
 >>> Round 1: crash cdo-sample-api (/panic) + incident
     Round 1 outcome: → auto_resolved
 >>> Round 2: crash cdo-sample-api (/panic) + incident
-    Round 2 outcome: 
+    Round 2 outcome: → cooldown_skipped
 >>> Round 3: crash cdo-sample-api (/panic) + incident
-    Round 3 outcome: 
+    Round 3 outcome: → cooldown_skipped
 === TỔNG KẾT ===
 >>> Round tenant-B: notification-service (tenant-b) incident
 {"timestamp": "2026-07-01T17:28:22.930Z", "correlation_id": "abfcbea1-54df-47ef-8e25-72dd5240e14a", "tenant_id": "6c8b4b2b-4d45-4209-a1b4-4b532d56a31c", "event": "prom_window_built", "namespace": "tenant-b", "detail": "518 points deployment=notification-service"}
