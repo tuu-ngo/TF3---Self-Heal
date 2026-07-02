@@ -55,6 +55,15 @@ module "secrets" {
 # Helm cần provider trỏ vào EKS THẬT → tách phase-2 (không gộp 1 apply với việc
 # tạo cluster vì provider không thể phụ thuộc resource tạo cùng lúc).
 #
+# ⚠ ADD-ONS NGOÀI TERRAFORM (có chủ đích — xem 04_deployment_design §1.4):
+#   Ngoài 3 module Helm dưới, các thành phần sau hiện cài TAY (helm/kubectl),
+#   KHÔNG do Terraform quản (nên `terraform apply` đơn thuần KHÔNG dựng lại full cụm):
+#     - aws-load-balancer-controller (Helm; IRSA role cdo-aws-lb-controller-* do IaM/EKS tạo)
+#     - Kyverno 4 ClusterPolicy: kubectl apply -f manifests/kyverno/policies/
+#     - App Deployments: executor (k8s/03-executor.yaml), ai-engine + forwarder
+#       (manifests/ai-engine, manifests/forwarder) — apply theo 09_deploy_runbook_live.md
+#   Reproduce cụm = phase-1 apply → phase-2 apply → chạy runbook 09 (Phase 4-6).
+#
 # QUY TRÌNH bật phase-2 (chạy SAU khi phase-1 apply xong, cluster ACTIVE):
 #   cd infra/envs/dev
 #   mv providers.tf providers_phase1.tf.bak

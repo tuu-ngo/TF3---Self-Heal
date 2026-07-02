@@ -9,8 +9,9 @@ module "eks" {
   subnet_ids               = var.subnet_ids
   control_plane_subnet_ids = var.subnet_ids
 
-  # Public endpoint giới hạn theo IP workstation để kubectl được từ laptop (sandbox).
-  # Pods/nodes vẫn dùng private endpoint. Đổi CIDR nếu IP thay đổi.
+  # Public endpoint MỞ 0.0.0.0/0 (sandbox, user đồng ý — IP ISP động) qua var.public_access_cidrs.
+  # EKS API vẫn yêu cầu IAM auth + RBAC → chỉ mở network reachability, không mở quyền.
+  # Pods/nodes vẫn dùng private endpoint. Production: siết var.public_access_cidrs về IP/VPN cố định.
   cluster_endpoint_public_access       = true
   cluster_endpoint_public_access_cidrs = var.public_access_cidrs
   cluster_endpoint_private_access      = true
@@ -28,7 +29,7 @@ module "eks" {
     default_node_group = {
       min_size     = 2
       max_size     = 5
-      desired_size = 3 # 2→3: fix "too many pods" (t3.medium max 17 pod/node) + chỗ cho AI engine
+      desired_size = 4 # 4 node: chứa Online Boutique (11 svc) + AI engine + executor + forwarder + kube-prometheus-stack (t3.medium ~17 pod/node)
 
       instance_types = ["t3.medium"]
       capacity_type  = "ON_DEMAND"

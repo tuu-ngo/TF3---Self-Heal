@@ -97,6 +97,20 @@ Terraform state hiện đang lưu local tại `infra/envs/dev/terraform.tfstate`
 
 **Target W12 nếu kịp:** Migrate lên S3 backend (`backend "s3"` + S3 lockfile). Không block W11 delivery.
 
+### 1.4 Boundary: cái gì do Terraform quản, cái gì cài ngoài (phase-2)
+
+Có chủ đích tách 2 lớp (Terraform không thể tạo cluster + cài Helm trong cùng 1 apply vì provider Helm/K8s phải trỏ vào cluster đã ACTIVE):
+
+| Thành phần | Quản bởi | Cách deploy |
+|---|---|---|
+| VPC, EKS, node group, IAM/IRSA, S3 audit, DynamoDB, SQS+DLQ, ECR (executor/forwarder/**ai-engine**), CloudWatch log/alarm, Secrets | **Terraform (phase-1)** | `terraform apply` ở `infra/envs/dev` |
+| Kyverno / ArgoCD / kube-prometheus-stack (Helm) | **Terraform (phase-2, module Helm)** | bật 3 module trong `main.tf` sau khi cluster ACTIVE |
+| **aws-load-balancer-controller** (Helm) | **Ngoài Terraform** | cài tay qua Helm (IRSA role `cdo-aws-lb-controller-*`) |
+| **Kyverno 4 ClusterPolicy** (replicas · mem · ns-allowlist · field-level mutation) | **Ngoài Terraform** | `kubectl apply -f manifests/kyverno/policies/` |
+| App Deployments: executor `cdo-executor:v8`, ai-engine `ai-engine:v5`, forwarder `cdo-forwarder:v4` | **Ngoài Terraform** | kubectl/manifest theo [09_deploy_runbook_live](09_deploy_runbook_live.md) |
+
+> **Hệ quả:** `terraform apply` đơn thuần **không** dựng lại toàn bộ cụm. Reproduce đầy đủ = phase-1 (`terraform apply`) → phase-2 (bật module Helm) → runbook 09 (Phase 4–6: workloads + app + policies). Đây là lựa chọn scope capstone, không phải thiếu sót — nhưng phải chạy đủ 3 bước để tái tạo.
+
 ## 2. CI/CD pipeline
 
 ### 2.1 Các stage trong pipeline

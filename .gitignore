@@ -13,3 +13,6 @@ __pycache__/
 
 # binary archive — không version control
 *.rar
+
+# 4h offline sim raw log (431MB, >GitHub 100MB) — chỉ commit .summary.log
+evidence/w12-scenario-sim/offline_4h_report.log

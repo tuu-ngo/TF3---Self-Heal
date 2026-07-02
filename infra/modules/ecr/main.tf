@@ -63,3 +63,39 @@ resource "aws_ecr_lifecycle_policy" "forwarder" {
     }]
   })
 }
+
+# ECR repo cho AI Engine (image do AI team bàn giao, CDO deploy — xem 04_deployment_design §8).
+# LƯU Ý: repo này đã tồn tại live (tạo tay trước khi đưa vào IaC) → adopt bằng import,
+# KHÔNG apply thẳng (tránh ResourceAlreadyExistsException):
+#   terraform import module.ecr.aws_ecr_repository.ai_engine ai-engine
+resource "aws_ecr_repository" "ai_engine" {
+  name = "ai-engine"
+  # MUTABLE: AI team đẩy lại cùng tag (v3/v4/v5) khi vá engine trong lúc capstone.
+  image_tag_mutability = "MUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+
+  encryption_configuration {
+    encryption_type = "AES256"
+  }
+
+  force_delete = true
+}
+
+resource "aws_ecr_lifecycle_policy" "ai_engine" {
+  repository = aws_ecr_repository.ai_engine.name
+  policy = jsonencode({
+    rules = [{
+      rulePriority = 1
+      description  = "Giữ 10 image mới nhất"
+      selection = {
+        tagStatus   = "any"
+        countType   = "imageCountMoreThan"
+        countNumber = 10
+      }
+      action = { type = "expire" }
+    }]
+  })
+}

@@ -52,22 +52,26 @@ ECR_FWD=$(terraform -chdir=infra/envs/dev output -raw ecr_forwarder_url)
 docker build -t "$ECR_FWD:v1" forwarder/ && docker push "$ECR_FWD:v1"
 ```
 
-## Phase 4 — Deploy K8s base (namespaces · RBAC · workloads · mock AI · executor)
+## Phase 4 — Deploy K8s base (namespaces · RBAC · workloads · AI engine · executor)
 
 ```bash
 kubectl apply -f k8s/00-namespaces.yaml
 kubectl apply -f manifests/namespaces/monitoring.yaml
 kubectl apply -f k8s/01-rbac.yaml          # điền REPLACE_WITH_EXECUTOR_ROLE_ARN trước
 kubectl apply -f k8s/04-workloads.yaml      # podinfo tenant-a/b
-kubectl apply -f k8s/02-mock-ai.yaml        # mock AI tạm (điền ECR_EXEC); MAI swap image thật
+# AI Engine THẬT (ai-engine:v5, image AI team bàn giao) — KHÔNG còn dùng mock:
+kubectl apply -f manifests/rbac/ai-engine-serviceaccount.yaml   # điền ai_engine_role_arn
+kubectl apply -f manifests/ai-engine/deployment.yaml            # image ai-engine:v5, API_PORT=8080
 kubectl apply -f k8s/03-executor.yaml       # điền ECR_EXEC, audit bucket, sqs_queue_url
+kubectl -n self-heal-system rollout status deploy/ai-engine deploy/cdo-executor
 ```
 
 **Placeholder cần thay (từ `terraform output`):**
 | Placeholder | Lấy từ |
 |---|---|
 | `REPLACE_WITH_EXECUTOR_ROLE_ARN` | `executor_role_arn` |
-| `REPLACE_WITH_ECR_URL` (mock AI + executor) | `ecr_executor_url` |
+| `ai_engine_role_arn` (SA ai-engine) | `ai_engine_role_arn` |
+| `REPLACE_WITH_ECR_URL` (executor) | `ecr_executor_url` |
 | `REPLACE_WITH_AUDIT_BUCKET` | `audit_bucket_name` |
 | `REPLACE_WITH_SQS_QUEUE_URL` | `sqs_queue_url` |
 
@@ -107,26 +111,8 @@ kubectl -n self-heal-system logs deploy/cdo-executor
 
 ---
 
-## NGÀY MAI — gắn AI Engine thật (1 lệnh)
-
-```bash
-# 1. AI team đưa image → push vào ECR (hoặc dùng ECR của họ)
-# 2. Annotate SA ai-engine bằng ai_engine_role_arn (đã có sẵn từ Phase 1)
-# 3. Deploy:
-cp manifests/ai-engine/deployment.yaml.template manifests/ai-engine/deployment.yaml
-#    thay <AI_ENGINE_IMAGE> = image AI team
-kubectl delete -f k8s/02-mock-ai.yaml          # gỡ mock
-kubectl apply  -f manifests/rbac/ai-engine-serviceaccount.yaml   # điền ai_engine_role_arn
-kubectl apply  -f manifests/ai-engine/deployment.yaml
-kubectl -n self-heal-system rollout status deploy/ai-engine
-```
-
-Executor đã trỏ `AI_BASE_URL=http://ai-engine.self-heal-system.svc.cluster.local:8080` — không cần đổi gì ở executor. Toàn bộ pipeline tự chạy với AI thật.
-
----
-
 ## Ghi chú "không sai sót"
-- **Telemetry hôm nay**: forwarder + SQS hoạt động ngay; executor đọc SQS là nguồn chính, poll K8s 30s là fallback (tự bật nếu `CDO_TELEMETRY_QUEUE_URL` rỗng).
-- **Mock AI hôm nay** trả `RESTART_DEPLOYMENT` cho hầu hết alert (an toàn, loop hoàn tất). AI thật mai sẽ map đúng runbook (OOM→PATCH_MEMORY, bad-deploy→ROLLOUT_UNDO…).
-- **Kyverno** đảm bảo zero-unsafe ở cluster-level kể cả khi mock AI/executor sai.
+- **Telemetry**: forwarder + SQS hoạt động; executor đọc SQS là nguồn chính, poll K8s 30s là fallback (tự bật nếu `CDO_TELEMETRY_QUEUE_URL` rỗng).
+- **AI Engine THẬT** (`ai-engine:v5`, BOCPD/BARO) map đúng runbook (OOM→PATCH_MEMORY_LIMIT, bad-deploy→ROLLOUT_UNDO…). Executor trỏ `AI_BASE_URL=http://ai-engine.self-heal-system.svc.cluster.local:8080` — pipeline tự chạy với AI thật. (Mock `mock_ai_server.py` chỉ còn dùng cho offline scenario sim, KHÔNG deploy live.)
+- **Kyverno** đảm bảo zero-unsafe ở cluster-level kể cả khi AI/executor sai.
 - **expr PromQL** latency/error (HighLatencyP95/HighErrorRate) phụ thuộc metric podinfo — tinh chỉnh threshold theo dữ liệu thật nếu cần; 4 alert hạ tầng (OOM/crashloop/imagepull/memory) chạy từ kube-state-metrics + kubelet, không cần tinh chỉnh.
