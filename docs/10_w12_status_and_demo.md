@@ -64,7 +64,7 @@ tenant pod lỗi
 |---|---|
 | ≥3 pattern impl+tested + ≥2 designed | ✅ RESTART/PATCH/ROLLOUT (urgent, chạy thật) + SCALE/ROTATE (deferred, designed + playbook + diagram + ADR) |
 | Auto-resolve ≥60% / ≥10 scenario | ✅ `run_scenarios.py` **14 scenario → 71.4%** (deterministic, offline, verified) |
-| Scenario sim ≥4h | ✅ `--duration 4h` **đang chạy** → `evidence/w12-scenario-sim/offline_4h_report.log` |
+| Scenario sim ≥4h | ✅ `--duration 4h` **PASS** → `evidence/w12-scenario-sim/offline_4h_report.summary.log` |
 | Zero unsafe action | ✅ safety-gate + RBAC + Kyverno; `sc11` cross-tenant deny, `sc12` DELETE_NS deny |
 | Audit tamper-evident ≥90d | ✅ S3 Object Lock Governance 90d + CloudWatch Logs Insights |
 | 5 safety sub-checkpoint | ✅ dry-run · blast-radius · verify · rollback · circuit-breaker |
@@ -85,7 +85,7 @@ ADR: **11** (`docs/08_adrs.md`) — phủ 5 chủ đề: decision-engine, audit-
 ### 5.1 Kết quả 2 luồng test (evidence trong `evidence/w12-scenario-sim/`)
 | Luồng | Kết quả |
 |---|---|
-| **Offline** (deterministic, mock AI) | 10/14 = **71.4% auto-resolve — PASS** (≥60%); `--duration 4h` đang chạy |
+| **Offline** (deterministic, mock AI) | 10/14 = **71.4% auto-resolve — PASS** (≥60%); `--duration 4h` **PASS** |
 | **Online chaos** (cluster thật, AI V5) | tenant-a: fault thật → **RESTART thật → auto_resolved** ✅ · **cooldown anti-flap** ✅ · **cross-tenant deny** ✅ |
 
 > Online tenant-b bị `denied_cross_tenant` (profile hardcode namespace=tenant-a — safety gate chặn đúng); **multi-tenant heal proven OFFLINE** (sc06/07/08 tenant-b auto_resolve).
