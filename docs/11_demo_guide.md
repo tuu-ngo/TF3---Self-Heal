@@ -102,30 +102,16 @@ Get-Content scripts/demo_ai_smoke.py | kubectl -n self-heal-system exec -i deplo
 
 Chứng minh cả đường dây: **trigger → SQS → executor drain → dense-window Prometheus → detect → decide → safety → execute → verify → audit**.
 
-### Cách A — Inject lỗi THẬT rồi để hệ tự heal (ấn tượng nhất)
-```bash
-# Bật T1 (executor log) + T2 (pod watch) trước.
-# Tạo OOM thật trên tenant-a để Prometheus ghi nhận anomaly:
-kubectl run oom-test -n tenant-a --image=polinux/stress --restart=Never -- --vm 1 --vm-bytes 250M --vm-hang 0
+> ⚠️ **ĐỌC TRƯỚC (đã kiểm chứng live):** heal sạch `auto_resolved` **không tái tạo được tin cậy theo yêu cầu** trên cluster live, vì workload thật có memory **phẳng** → detect trả `no_anomaly` (đúng — không false-positive). Detect chỉ ra `mem` khi memory **ramp mạnh** (như trong `scripts/demo_ai_smoke.py`), mà podinfo/OB không tự ramp.
+> - Đừng dùng `kubectl run oom-test ...`: đó là **pod lẻ, KHÔNG phải Deployment** → executor không heal nó (executor chỉ heal Deployment).
+> - **Con số auto-resolve chính thức → §5 offline runner (71.4%).** Live dùng để chứng minh "thật + an toàn + escalation".
 
-# Alertmanager fire PodOOMKilled -> forwarder -> SQS -> executor tự xử.
-# Xem T1: alert_received -> detect_called -> ... -> execute_done -> verify_done -> incident_closed
-# Dọn sau demo:
-kubectl -n tenant-a delete pod oom-test --ignore-not-found
-```
-
-### Cách B — Bơm trigger trực tiếp vào SQS (chủ động, không cần chờ Alertmanager)
+### Cách A — E2E "reasoning + safety" (tin cậy): trigger SQS, xem executor xử lý thật
+Bật T1 (executor log) + T2 (pod watch) trước, rồi bơm 1 trigger vào SQS:
 ```bash
 export AWS_REGION=us-east-1
 QURL=https://sqs.us-east-1.amazonaws.com/012619468490/cdo-telemetry-dev
-aws sqs send-message --queue-url "$QURL" --message-body '{
-  "ts":"2026-07-02T00:00:00Z",
-  "tenant_id":"6c8b4b2b-4d45-4209-a1b4-4b532d56a31c",
-  "service":"cdo-sample-api",
-  "signal_name":"container_restart_count",
-  "value":5,
-  "labels":{"system":"K8S_NATIVE","namespace":"tenant-a","deployment":"cdo-sample-api","container":"podinfo"}
-}'
+aws sqs send-message --queue-url "$QURL" --message-body '{"ts":"2026-07-02T00:00:00Z","tenant_id":"6c8b4b2b-4d45-4209-a1b4-4b532d56a31c","service":"cdo-sample-api","signal_name":"container_restart_count","value":5,"labels":{"system":"K8S_NATIVE","namespace":"tenant-a","deployment":"cdo-sample-api","container":"podinfo"}}'
 # Xem T1 executor log: executor drain message -> build dense-window Prometheus -> /v1/detect ...
 kubectl -n self-heal-system logs --tail=40 -f deploy/cdo-executor
 ```
@@ -139,10 +125,11 @@ aws sqs send-message --queue-url $QURL --message-body $body
 kubectl -n self-heal-system logs --tail=40 -f deploy/cdo-executor
 ```
 
-> ⚠ **Detect phụ thuộc DATA THẬT:** SQS chỉ là *trigger* — executor tự kéo dense-window từ Prometheus cho `cdo-sample-api`. Nếu pod đang khỏe (data phẳng) → engine trả `no_anomaly` (đúng, không false-positive) → `incident_closed: no_action`. Muốn chắc chắn thấy **heal thật** → dùng **Cách A** (inject OOM) hoặc backup **§5** (offline luôn xanh).
+> ⚠ **Kết quả mong đợi = `incident_closed: no_action` (no_anomaly)** khi cdo-sample-api đang khỏe (data phẳng) — điều này CHỨNG MINH pipeline chạy đúng (drain SQS → dựng dense-window → detect) và **không false-positive**. Đây là kết quả tốt để nói. Muốn con số **auto-resolve** → **§5 offline runner**. Muốn thấy execute+escalate thật → crashloop 1 service OB ([12_demo_guide_online_boutique.md](12_demo_guide_online_boutique.md)).
 
-**Các event chính cần chỉ trong log (T1):**
+**Chuỗi event đầy đủ (tham chiếu — chỉ hiện KHI detect ra anomaly):**
 `alert_received → detect_called → detect_response_received → pre_decide_decision → idempotency_lock_acquired → decide_called → action_plan_received → safety_passed(6 checks) → rollback_snapshot_captured → execute_done → verify_done → incident_closed: auto_resolved`
+(Với data phẳng bạn sẽ chỉ thấy tới `pre_decide_decision: no_anomaly → incident_closed: no_action` — đúng.)
 
 ---
 
