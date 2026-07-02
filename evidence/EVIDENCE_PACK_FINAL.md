@@ -198,7 +198,7 @@ Bằng chứng resource tree của app trong ArgoCD đã xanh toàn bộ — t�
 
 ### 11.1 Offline 4h Scenario Test
 
-Evidence file: `./w12-scenario-sim/offline_4h_report.summary.log`
+Evidence file: [offline_4h_report.summary.log](./w12-scenario-sim/offline_4h_report.summary.log)
 
 Bằng chứng W12 scenario simulation đã chạy offline 4h thành công. Report ghi nhận:
 - `Rounds run`: 10633
@@ -209,7 +209,7 @@ Bằng chứng W12 scenario simulation đã chạy offline 4h thành công. Repo
 
 ### 11.2 Online Chaos Report
 
-Evidence file: `./w12-scenario-sim/online_chaos_report.log`
+Evidence file: [online_chaos_report.log](./w12-scenario-sim/online_chaos_report.log)
 
 Bằng chứng online chaos đã chạy trên cluster thật với AI V4. Report ghi nhận:
 - Tenant-a `cdo-sample-api`: crash `/panic` + incident → detect V4 → decide → safety 6/6 → restart thật → verify → `AUTO_RESOLVED`
