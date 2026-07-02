@@ -1,0 +1,3 @@
+# Ép LF cho shell script + python để chạy được trên Git Bash/Linux (tránh CRLF làm bash lỗi $'\r').
+*.sh   text eol=lf
+*.py   text eol=lf
