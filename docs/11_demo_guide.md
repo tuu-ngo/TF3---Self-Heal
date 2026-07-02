@@ -102,9 +102,17 @@ Get-Content scripts/demo_ai_smoke.py | kubectl -n self-heal-system exec -i deplo
 
 Chứng minh cả đường dây: **trigger → SQS → executor drain → dense-window Prometheus → detect → decide → safety → execute → verify → audit**.
 
-> ⚠️ **ĐỌC TRƯỚC (đã kiểm chứng live):** heal sạch `auto_resolved` **không tái tạo được tin cậy theo yêu cầu** trên cluster live, vì workload thật có memory **phẳng** → detect trả `no_anomaly` (đúng — không false-positive). Detect chỉ ra `mem` khi memory **ramp mạnh** (như trong `scripts/demo_ai_smoke.py`), mà podinfo/OB không tự ramp.
-> - Đừng dùng `kubectl run oom-test ...`: đó là **pod lẻ, KHÔNG phải Deployment** → executor không heal nó (executor chỉ heal Deployment).
-> - **Con số auto-resolve chính thức → §5 offline runner (71.4%).** Live dùng để chứng minh "thật + an toàn + escalation".
+> ✅ **HEAL SẠCH `auto_resolved` LIVE — DÙNG [`scripts/live_heal_demo.sh`](../scripts/live_heal_demo.sh)** (đã verify 2026-07-02). Cơ chế: engine (BOCPD) chỉ ra `mem` khi có **baseline phẳng ≥40 điểm (~10') RỒI spike** — workload thật phẳng nên không tự fire. Script tạo `mem-demo` (container `podinfo` để PATCH khớp) giữ baseline rồi spike theo lệnh:
+> ```bash
+> bash scripts/live_heal_demo.sh deploy    # lúc setup (baseline ~10-11')
+> bash scripts/live_heal_demo.sh status    # chờ "Baseline đủ: YES"
+> bash scripts/live_heal_demo.sh spike     # BẤM live -> memory nhảy 635MB
+> bash scripts/live_heal_demo.sh watch     # xem: detect mem 0.95 -> PATCH_MEMORY -> execute_done -> verify DONE -> auto_resolved
+> bash scripts/live_heal_demo.sh clean     # dọn (nhớ: sau heal có cooldown 5')
+> ```
+> - **Đừng** `kubectl run oom-test`: pod lẻ, không phải Deployment → executor không heal.
+> - Nếu KHÔNG chuẩn bị baseline trước (bơm SQS lên workload phẳng) → sẽ ra `no_anomaly` (đúng behavior). Cách A dưới đây minh hoạ điều đó.
+> - Số auto-resolve tổng hợp → §5 offline runner (71.4%).
 
 ### Cách A — E2E "reasoning + safety" (tin cậy): trigger SQS, xem executor xử lý thật
 Bật T1 (executor log) + T2 (pod watch) trước, rồi bơm 1 trigger vào SQS:
