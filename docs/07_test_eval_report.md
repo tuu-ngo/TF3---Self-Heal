@@ -29,7 +29,7 @@ Các mục bên dưới là **kế hoạch test**; phần này ghi **kết quả
 ### 0.2 Kết quả 2 luồng test
 | Luồng | Kết quả | Evidence |
 |---|---|---|
-| **Offline scenario sim** (deterministic, mock AI, `run_scenarios.py`) | **10/14 = 71.4% auto-resolve — PASS** (target ≥60%); 14/14 scenario expected outcome matched | [../evidence/qa-07/offline_scenario_run_14.txt](../evidence/qa-07/offline_scenario_run_14.txt), [../evidence/qa-07/audit_index.md](../evidence/qa-07/audit_index.md) |
+| **Offline scenario sim** (deterministic, mock AI, `run_scenarios.py`) | **10/14 = 71.4% auto-resolve — PASS** (target ≥60%); 14/14 scenario expected outcome matched | [../evidence/qa-07/offline_scenario_run_14.txt](../evidence/qa-07/offline_scenario_run_14.txt), [../evidence/qa-07/audit_index.md](../evidence/qa-07/audit_index.md), [../evidence/w12-scenario-sim/offline_4h_report.summary.log](../evidence/w12-scenario-sim/offline_4h_report.summary.log) |
 | **Online chaos** (cluster thật, AI V4 evidence run) | tenant-a: fault thật → **RESTART thật → auto_resolved** ✅; cooldown anti-flap ✅; cross-tenant deny ✅ | [../evidence/w12-scenario-sim/online_chaos_report.log](../evidence/w12-scenario-sim/online_chaos_report.log) |
 
 ### 0.3 Đối chiếu 8 hard-requirement
@@ -37,7 +37,7 @@ Các mục bên dưới là **kế hoạch test**; phần này ghi **kết quả
 |---|---|---|
 | 1 | ≥3 impl+tested + ≥2 designed | ✅ RESTART/PATCH/ROLLOUT (urgent, live) + SCALE/ROTATE (deferred, designed+ADR) |
 | 2 | Auto-resolve ≥60% / ≥10 scenario | ✅ **71.4% / 14** |
-| 3 | Scenario sim ≥4h | PoC validation focuses on 14-scenario coverage plus online chaos evidence |
+| 3 | Scenario sim ≥4h | ✅ offline 4h summary log available + 14-scenario coverage + online chaos evidence |
 | 4 | Zero unsafe action | ✅ sc11 deny cross-tenant, sc12 deny unsafe; live cross-tenant deny |
 | 5 | Audit tamper-evident ≥90d | ✅ S3 Object Lock 90d + CloudWatch Logs Insights |
 | 6 | 5 safety sub-checkpoint | ✅ dry-run·blast-radius·verify·rollback(sc09)·circuit-breaker |
@@ -82,7 +82,7 @@ Telemetry / Alertmanager
 | Security test | pytest + platform evidence | cross-tenant deny, unsafe action deny, RBAC/Kyverno | App gate PASS; platform controls evidenced by IRSA/policy artifacts | [../evidence/qa-07/pytest_executor_tests.txt](../evidence/qa-07/pytest_executor_tests.txt), [../evidence/images/iam-irsa-executor.png](../evidence/images/iam-irsa-executor.png) |
 | Observability test | Prometheus/Alertmanager/Forwarder/SQS | Alert -> scrub -> queue -> executor | Screenshot/log evidence available for CloudWatch/Grafana path | [../evidence/images/slo-cwl-query.png](../evidence/images/slo-cwl-query.png), [../evidence/images/cwl-correlation-trace.png](../evidence/images/cwl-correlation-trace.png), [../evidence/images/grafana-dashboard-selfheal.png](../evidence/images/grafana-dashboard-selfheal.png) |
 | Audit test | stdout, CloudWatch, S3 Object Lock | trace by `correlation_id`, retention >=90d | PASS for offline 14/14 index + AWS console evidence for S3/CWL | [../evidence/qa-07/audit_index.md](../evidence/qa-07/audit_index.md), [../evidence/EVIDENCE_PACK_FINAL.md](../evidence/EVIDENCE_PACK_FINAL.md) |
-| Load/soak test | scenario runner + online chaos | repeated incident loop, auto-resolve rate | PoC package uses online chaos log + 14-scenario QA run | [../evidence/w12-scenario-sim/online_chaos_report.log](../evidence/w12-scenario-sim/online_chaos_report.log), [../evidence/qa-07/offline_scenario_run_14.txt](../evidence/qa-07/offline_scenario_run_14.txt) |
+| Load/soak test | scenario runner + online chaos | repeated incident loop, auto-resolve rate | PoC package uses online chaos log + offline 4h summary + 14-scenario QA run | [../evidence/w12-scenario-sim/online_chaos_report.log](../evidence/w12-scenario-sim/online_chaos_report.log), [../evidence/w12-scenario-sim/offline_4h_report.summary.log](../evidence/w12-scenario-sim/offline_4h_report.summary.log), [../evidence/qa-07/offline_scenario_run_14.txt](../evidence/qa-07/offline_scenario_run_14.txt) |
 
 ## 2. SLO evidence
 
@@ -90,7 +90,7 @@ Các SLO dưới đây được điều chỉnh cho Self-Heal thay vì API SaaS 
 
 | SLO / Requirement | Target | Measured | Window | Mode | Pass/Fail | Evidence |
 |---|---:|---|---|---|---|---|
-| Scenario count | >=10 injected | 14 scenarios | QA-07 local run + W12 report | mixed | PASS | [../evidence/qa-07/offline_scenario_run_14.txt](../evidence/qa-07/offline_scenario_run_14.txt) |
+| Scenario count | >=10 injected | 14 scenarios | QA-07 local run + W12 report | mixed | PASS | [../evidence/qa-07/offline_scenario_run_14.txt](../evidence/qa-07/offline_scenario_run_14.txt), [../evidence/w12-scenario-sim/offline_4h_report.summary.log](../evidence/w12-scenario-sim/offline_4h_report.summary.log) |
 | Auto-resolve rate | >=60% | 10/14 = 71.4% | QA-07 local run | mock-offline deterministic | PASS | [../evidence/qa-07/offline_scenario_run_14.txt](../evidence/qa-07/offline_scenario_run_14.txt) |
 | Unsafe action count | 0 | 0 unsafe mutation observed; sc11/sc12 denied | scenario set + online chaos | mixed | PASS | [../evidence/qa-07/audit_index.md](../evidence/qa-07/audit_index.md), online chaos log |
 | Cross-tenant mutation | 0 | 0 observed; sc11 and live tenant-b denied | sc11 + live deny | mixed | PASS | [../evidence/qa-07/audit_index.md](../evidence/qa-07/audit_index.md), [../evidence/w12-scenario-sim/online_chaos_report.log](../evidence/w12-scenario-sim/online_chaos_report.log) |
@@ -143,7 +143,7 @@ Các ảnh dưới đây là evidence dạng screenshot cho phần platform/AWS 
 
 Load/soak chính của CDO-02 là scenario loop, không phải HTTP RPS thuần. Mục tiêu là chứng minh hệ thống xử lý nhiều incident liên tiếp, giữ idempotency, không flap và không tạo unsafe action.
 
-- **Load profile:** this PoC package validates incident handling through 14 deterministic scenarios plus an online chaos run.
+- **Load profile:** this PoC package validates incident handling through a 4h offline summary log, 14 deterministic scenarios, plus an online chaos run.
 - **Scenario set:** `executor/scenarios/sc01` đến `sc14`.
 - **Tenants simulated:** `tenant-a`, `tenant-b`.
 - **Runtime modes:** offline deterministic mock AI cho coverage; online chaos full-real cho ít nhất một luồng live.
@@ -154,7 +154,7 @@ Load/soak chính của CDO-02 là scenario loop, không phải HTTP RPS thuần.
 | Metric | Target | Achieved | Mode | Evidence |
 |---|---:|---|---|---|
 | Incidents/scenarios injected | >=10 | 14 | mock-offline | [../evidence/qa-07/offline_scenario_run_14.txt](../evidence/qa-07/offline_scenario_run_14.txt) |
-| Scenario evidence window | >=10 incidents | 14 deterministic scenarios + online chaos run | PoC validation | PASS |
+| Scenario evidence window | >=10 incidents | 4h offline summary + 14 deterministic scenarios + online chaos run | PoC validation | PASS |
 | Auto-resolved | >=60% | 10/14 = 71.4% | mock-offline | runner summary |
 | Online chaos restart | >=1 full-real mutation | tenant-a restart auto_resolved | full-real | [../evidence/w12-scenario-sim/online_chaos_report.log](../evidence/w12-scenario-sim/online_chaos_report.log) |
 | Cross-tenant deny | 0 mutation | deny observed | full-real/mocked safety | [../evidence/w12-scenario-sim/online_chaos_report.log](../evidence/w12-scenario-sim/online_chaos_report.log), [../evidence/qa-07/audit_index.md](../evidence/qa-07/audit_index.md) |
