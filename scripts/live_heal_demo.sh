@@ -40,10 +40,18 @@ spec:
       containers:
         - name: podinfo
           image: python:3.12-slim
-          command: ["python","-u","-c","import time,os\nbase=bytearray(35*1024*1024)\nprint('baseline 35MB, cho /tmp/spike',flush=True)\nsp=None\nwhile True:\n if sp is None and os.path.exists('/tmp/spike'):\n  sp=bytearray(600*1024*1024); print('SPIKED 635MB',flush=True)\n time.sleep(3)"]
+          # baseline 35MB phẳng (dưới limit 1024Mi, KHÔNG OOM). Khi /tmp/spike tồn tại
+          # -> giữ ~635MB (vẫn < limit -> pod SỐNG, memory bậc-thang rõ). BOCPD thấy
+          # baseline+spike -> anomaly=true sev 0.95. Executor (GATE_CONF_EXECUTE=0.45)
+          # PROCEED -> PATCH_MEMORY(podinfo) -> verify DONE -> auto_resolved.
+          command: ["python","-u","-c","import time,os\nbase=bytearray(35*1024*1024)\nprint('baseline 35MB, cho /tmp/spike',flush=True)\nsp=None\nwhile True:\n if sp is None and os.path.exists('/tmp/spike'):\n  print('SPIKE 635MB',flush=True); sp=bytearray(600*1024*1024)\n time.sleep(2)"]
           resources:
             requests: {memory: 64Mi, cpu: 50m}
             limits: {memory: 1024Mi, cpu: 200m}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - {name: tmp, emptyDir: {}}
 YAML
   echo ">> Deploy '$DEP'. CHỜ ~11 phút baseline. Kiểm tra: bash $0 status"
 }

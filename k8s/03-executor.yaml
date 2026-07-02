@@ -57,6 +57,13 @@ spec:
               value: "15"
             - name: AI_TIMEOUT_VERIFY_S
               value: "10"
+            # Pre-Decide Gate: act khi confidence >= 0.45 (BOCPD luôn ra anomaly sev 0.95;
+            # BARO RCA single-metric hay trả conf 0.5 -> hạ ngưỡng để tự xử thay vì escalate).
+            # Safety Gate 6-check + verify vẫn gác. Production siết về 0.8.
+            - name: GATE_CONF_DISCARD
+              value: "0.3"
+            - name: GATE_CONF_EXECUTE
+              value: "0.45"
           resources:
             requests:
               cpu: "100m"
