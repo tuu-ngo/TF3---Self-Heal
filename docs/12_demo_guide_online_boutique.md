@@ -55,7 +55,7 @@ kubectl -n self-heal-system exec deploy/ai-engine -- python -c "import urllib.re
 
 ## 2. Demo A — Heal SẠCH bằng RESTART (khuyến nghị)
 
-Gây **CrashLoop** trên service OB (không phải OOM) → detect phân loại service-stuck → **RESTART_DEPLOYMENT** → executor restart thật → `auto_resolved`. Rollback snapshot cho phép khôi phục.
+> **ĐÃ KIỂM CHỨNG THẬT 2026-07-02:** trên Online Boutique, anomaly bị detect phân loại `mem` (executor luôn kéo dense-window *memory*) → engine ra `PATCH_MEMORY_LIMIT` container `podinfo` → không khớp container `server` của OB → **`execute_failed` → escalate an toàn**. Vậy **OB KHÔNG ra `auto_resolved`; kết quả ĐÚNG là ESCALATE** (defense-in-depth) — đây là thứ để demo trên OB. Muốn `auto_resolved` sạch → target `cdo-sample-api` ([11_demo_guide.md §3](11_demo_guide.md)).
 
 ### Bước 1 — gây crashloop (ghi đè command để container thoát ngay)
 ```bash
@@ -63,18 +63,18 @@ kubectl -n tenant-a patch deploy emailservice --type=strategic -p '{"spec":{"tem
 # Pod sẽ vào CrashLoopBackOff (RESTARTS tăng dần) — xem T2.
 ```
 
-### Bước 2 — quan sát self-heal tự chạy (T1)
-Watcher poll 30s phát hiện `CRASH_LOOP` (sau ≥3 restart) → tự chạy vòng. Trong **T1** tìm chuỗi:
+### Bước 2 — quan sát (T1) — kết quả mong đợi: ESCALATE an toàn
+Watcher poll 30s phát hiện `CRASH_LOOP` (sau ≥3 restart) → chạy vòng. Chuỗi thật quan sát được:
 ```
 [watcher] phát hiện CRASH_LOOP tại tenant-a/emailservice
-alert_received → prom_window_built (…points) → detect_called → detect_response_received
-→ pre_decide_decision: proceed_to_decide → decide_called
-→ action_plan_received: RESTART_DEPLOYMENT → safety_passed (6 checks)
-→ rollback_snapshot_captured → execute_done: RESTART_DEPLOYMENT success target=deployment/emailservice
-→ verify_done → incident_closed
+alert_received → prom_window_built (…points) → detect_called → detect_response_received (anomaly)
+→ action_plan_received: PATCH_MEMORY_LIMIT (container=podinfo)
+→ safety_passed → execute → execute_failed   (podinfo không có trên OB / Kyverno chặn)
+→ escalated  → [watcher] tenant-a/emailservice → escalated:execute_failed
 ```
+**Chốt khi demo:** hệ **KHÔNG làm hỏng service** — action sai thất bại/bị chặn an toàn rồi **escalate cho người** (thỏa "zero unsafe action" + escalation req #8). Đây là hành vi ĐÚNG trên workload lạ chưa tune profile.
 
-> Nếu detect ra `mem` (PATCH_MEMORY) thay vì RESTART → xem §3 (Kyverno chặn). Đa số crashloop-không-do-memory sẽ ra RESTART.
+> Nếu memory phẳng lúc đó → detect `no_anomaly` → `incident_closed: no_action` (cũng đúng, không false-positive).
 
 ### Bước 3 — KHÔI PHỤC service (bắt buộc, gỡ command lỗi)
 ```bash
@@ -82,7 +82,7 @@ kubectl -n tenant-a patch deploy emailservice --type=json -p '[{"op":"remove","p
 kubectl -n tenant-a rollout status deploy/emailservice     # chờ Running lại
 ```
 
-> ⚠ RESTART của executor chỉ restart pod — nếu command lỗi vẫn còn thì pod crash lại (executor đã "làm đúng việc", nhưng nguồn lỗi là config). Bước 3 gỡ nguồn lỗi để OB xanh lại. Đây cũng là điểm nói: self-heal xử lý *transient*, không sửa *config sai* (đúng thiết kế → sẽ escalate nếu lặp).
+> ⚠ Bước 3 **bắt buộc** để đưa OB về xanh (executor không tự sửa command lỗi — nó chỉ escalate). Đây cũng là điểm nói: self-heal xử lý *transient*, còn *config/workload sai* thì escalate cho người (đúng thiết kế).
 
 ---
 
